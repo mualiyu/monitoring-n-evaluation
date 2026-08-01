@@ -26,7 +26,10 @@ use LogicException;
 /**
  * A public project or programme executed under one MDA — tenant-owned.
  *
- * `status` is written ONLY by App\Actions\Projects\TransitionProjectStatus;
+ * `published_at` / `published_by_id` are deliberately NOT fillable: publishing
+ * is an explicit act by PublishProject (Phase 3 portal gate), never something
+ * a form payload can flip. `status` is written ONLY by
+ * App\Actions\Projects\TransitionProjectStatus;
  * `contract_sum` ONLY by AwardContract / RecordContractVariation inside the
  * contract transaction; `physical_progress` and `expenditure_to_date` ONLY by
  * RecordProjectProgress. `financial_progress` is derived and writable by

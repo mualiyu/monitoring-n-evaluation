@@ -17,13 +17,18 @@ return new class extends Migration
         // baseline forces a placeholder into every half-drafted indicator, and
         // a fabricated zero baseline is worse data quality than an explicit
         // null. ActivateIndicator enforces value + date + source.
+        //
+        // project_id RESTRICTS (migration review §5). It used to cascade,
+        // which meant a force-deleted project cascaded into indicators and
+        // then hit the restrict on indicator_readings — an FK violation rather
+        // than a clean error. The module now restricts all the way up.
         Schema::create('indicators', function (Blueprint $table) {
             $table->id();
             $table->ulid('ulid')->unique();
             $table->foreignId('tenant_id')->constrained()->restrictOnDelete();
             // Nullable: MDA-programme indicators exist that belong to no
             // single project.
-            $table->foreignId('project_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignId('project_id')->nullable()->constrained()->restrictOnDelete();
             // Deliberately unconstrained: the result_frameworks table arrives
             // in Phase 2 and attaches without migrating readings.
             $table->unsignedBigInteger('result_framework_id')->nullable();

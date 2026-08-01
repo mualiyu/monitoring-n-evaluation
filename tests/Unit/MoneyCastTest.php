@@ -169,3 +169,33 @@ it('refuses to parse a money value that is not a number at all', function (strin
     'two decimal points' => ['4500.00.00'],
     'a scientific float' => ['4.5e6'],
 ]);
+
+/*
+|--------------------------------------------------------------------------
+| Parser edges (migration review §7)
+|--------------------------------------------------------------------------
+*/
+
+it('rejects a value wider than the column instead of saturating silently', function () {
+    // (int) on 20 digits saturates at PHP_INT_MAX and would store a number
+    // nobody typed — a money parser without a length guard is a quiet lie.
+    expect(fn () => Money::fromDecimalString('99999999999999999999.99'))
+        ->toThrow(InvalidArgumentException::class, 'exceeds the 16-digit range');
+});
+
+it('accepts the widest value decimal(18,2) can actually hold', function () {
+    expect(Money::fromDecimalString('9999999999999999.99')->toDecimalString())
+        ->toBe('9999999999999999.99');
+});
+
+it('ignores leading zeros when measuring the width', function () {
+    expect(Money::fromDecimalString('0000000000000000000012.50')->minor())->toBe(1250);
+});
+
+it('rounds a negative amount by magnitude, exactly as it rounds a positive one', function () {
+    // Downward contract variations are where negatives come from, and the two
+    // directions must not round differently: -12.505 → -12.51, like 12.505 → 12.51.
+    expect(Money::fromDecimalString('-12.505')->minor())->toBe(-1251)
+        ->and(Money::fromDecimalString('-12.504')->minor())->toBe(-1250)
+        ->and(Money::fromDecimalString('12.505')->minor())->toBe(1251);
+});

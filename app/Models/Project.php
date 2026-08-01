@@ -23,6 +23,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use LogicException;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * A public project or programme executed under one MDA — tenant-owned.
@@ -31,10 +33,10 @@ use LogicException;
  * is an explicit act by PublishProject (Phase 3 portal gate), never something
  * a form payload can flip. `status` is written ONLY by
  * App\Actions\Projects\TransitionProjectStatus;
- * `contract_sum` ONLY by AwardContract / RecordContractVariation inside the
- * contract transaction; `physical_progress` and `expenditure_to_date` ONLY by
- * RecordProjectProgress. `financial_progress` is derived and writable by
- * no one.
+ * `contract_value_total` ONLY by AwardContract / RecordContractVariation
+ * inside the contract transaction (through RecalculateContractValueTotal);
+ * `physical_progress` and `expenditure_to_date` ONLY by RecordProjectProgress.
+ * `financial_progress` is derived and writable by no one.
  *
  * @property int $id
  * @property string $ulid
@@ -85,13 +87,37 @@ class Project extends Model
     use BelongsToTenant;
 
     /** @use HasFactory<ProjectFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
 
     protected static function booted(): void
     {
         static::creating(function (Project $project): void {
             $project->ulid ??= (string) Str::ulid();
         });
+    }
+
+    /**
+     * Everything auditable (rules/architecture.md). `logFillable()` covers the
+     * scope fields; the explicit list adds back the seven chokepoint columns
+     * that are deliberately NOT fillable — status, the money roll-ups and the
+     * lifecycle stamps are exactly the values an auditor asks "who changed
+     * this, and from what" about.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('projects')
+            ->logFillable()
+            ->logOnly([
+                'status', 'contract_value_total', 'expenditure_to_date',
+                'physical_progress', 'mid_term_flagged_at', 'status_changed_at',
+                'post_completion_review_due_at', 'published_at', 'published_by_id',
+            ])
+            // Money casts to a value object that JSON-encodes to {} — the raw
+            // decimal string is what belongs in an audit record.
+            ->useAttributeRawValues(['budget_allocation', 'contract_value_total', 'expenditure_to_date'])
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges();
     }
 
     protected function casts(): array
@@ -273,6 +299,32 @@ class Project extends Model
                 ->where('user_id', $user->id)
                 ->whereNull('unassigned_at')));
     }
+
+    /**
+     * Policy-side twin of scopeVisibleTo(): "may this user see THIS project",
+     * answered by the same query the list screens run, so a policy and a list
+     * can never disagree about a single row (design §3). The TenantScope on
+     * the query also makes a foreign-tenant project invisible here.
+     */
+    public function isVisibleTo(User $user): bool
+    {
+        return static::query()->visibleTo($user)->whereKey($this->getKey())->exists();
+    }
+
+    /**
+     * The fields the certification freeze protects (§2.3): scope, money and
+     * dates — the figures a certificate attests to. Everything else on the
+     * record (manager, reporting frequency) stays editable, and attaching
+     * monitoring artifacts is never blocked at all.
+     *
+     * @var list<string>
+     */
+    public const FROZEN_FIELDS = [
+        'reference', 'title', 'description', 'goal', 'objectives', 'sector_id',
+        'type', 'supervising_agency_id', 'supervising_agency_name',
+        'budget_allocation', 'budget_code', 'start_date', 'expected_end_date',
+        'revised_end_date', 'actual_end_date',
+    ];
 
     /**
      * Whether scope and financial FIELDS are frozen (from `certified` onward),

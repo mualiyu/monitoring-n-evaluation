@@ -37,9 +37,20 @@ final readonly class Money implements Stringable
     }
 
     /**
+     * The widest integer part `decimal(18,2)` can hold: 18 digits of precision
+     * minus the 2 kobo places. Anything longer never came from this database,
+     * so it is a parser error, not a value — and rejecting it here is what
+     * stops (int) casting from saturating silently at PHP_INT_MAX
+     * (migration review §7).
+     */
+    private const MAX_INTEGER_DIGITS = 16;
+
+    /**
      * Parse a decimal representation ("4500000.00", "4,500,000", "-12.50").
-     * More than two decimal places round half-up — the only rounding point in
-     * the system, and it happens on digits, never on a float.
+     * More than two decimal places round half **away from zero** — the
+     * magnitude is what rounds, so -12.505 becomes -12.51 exactly as 12.505
+     * becomes 12.51. This is the only rounding point in the system and it
+     * happens on digits, never on a float.
      */
     public static function fromDecimalString(string $amount): self
     {
@@ -47,6 +58,12 @@ final readonly class Money implements Stringable
 
         if (! preg_match('/^([+-]?)(\d+)(?:\.(\d+))?$/', $normalized, $matches)) {
             throw new InvalidArgumentException("Unparseable money value [{$amount}].");
+        }
+
+        if (strlen(ltrim($matches[2], '0')) > self::MAX_INTEGER_DIGITS) {
+            throw new InvalidArgumentException(
+                "Money value [{$amount}] exceeds the ".self::MAX_INTEGER_DIGITS.'-digit range of a decimal(18,2) column.'
+            );
         }
 
         $fraction = $matches[3] ?? '';

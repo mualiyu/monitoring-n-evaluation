@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\Role;
+use App\Tenancy\CurrentTenant;
+use Closure;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -48,5 +51,50 @@ class User extends Authenticatable implements MustVerifyEmail
     public function getRouteKeyName(): string
     {
         return 'public_id';
+    }
+
+    /**
+     * Whether the user holds one of these roles in the GLOBAL (oversight)
+     * team — the question "is this person state-level authority?", which a
+     * tenant-context check can never answer: spatie resolves roles against the
+     * bound permission team, so a StateAdmin browsing an MDA workspace holds
+     * no roles there at all.
+     *
+     * The relations are dropped either side of the switch because spatie bakes
+     * the team id into the loaded relation; a cached one would answer for the
+     * wrong team.
+     */
+    public function holdsGlobalRole(Role ...$roles): bool
+    {
+        return $this->inGlobalContext(fn (): bool => $this->hasAnyRole(
+            array_map(fn (Role $role): string => $role->value, $roles),
+        ));
+    }
+
+    /**
+     * Whether the user holds a permission in the GLOBAL (oversight) team.
+     * Used for authority over global tables — the contractor registry belongs
+     * to the state, so the permission that governs it is read from the state's
+     * team, never from whichever MDA workspace the request happens to be on.
+     */
+    public function holdsGlobalPermission(string $permission): bool
+    {
+        return $this->inGlobalContext(fn (): bool => $this->can($permission));
+    }
+
+    /**
+     * @param  Closure(): bool  $check
+     */
+    private function inGlobalContext(Closure $check): bool
+    {
+        return app(CurrentTenant::class)->runWithoutTenant(function () use ($check): bool {
+            $this->unsetRelation('roles')->unsetRelation('permissions');
+
+            try {
+                return $check();
+            } finally {
+                $this->unsetRelation('roles')->unsetRelation('permissions');
+            }
+        });
     }
 }

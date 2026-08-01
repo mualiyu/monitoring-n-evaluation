@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Casts\MoneyCast;
 use App\Enums\ContractStatus;
 use App\Enums\ContractType;
+use App\Exceptions\Projects\ProjectRuleViolation;
+use App\Models\Builders\ContractBuilder;
 use App\Models\Concerns\BelongsToTenant;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
@@ -15,17 +17,23 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * An engagement between an MDA and a firm — tenant-owned, even though the
  * contractor registry it points at is global. This is where the tenancy line
  * sits: every MDA sees every firm, no MDA sees another's contracts.
  *
- * The award `sum` is immutable. Revisions are separate rows pointing at the
- * contract they vary (`varies_contract_id`) — the manual's amendment-register
- * pattern, and the reason Project::$contract_sum is a maintained sum rather
- * than a copied figure.
+ * The award `sum` is immutable, and so are `award_date`, `contractor_id` and
+ * `scope_of_works` — enforced on the model (below), not only in the Action, so
+ * builder updates and future import paths cannot route around it (migration
+ * review §4). Revisions are separate rows pointing at the contract they vary
+ * (`varies_contract_id`) — the manual's amendment-register pattern, and the
+ * reason Project::$contract_value_total is a maintained sum rather than a
+ * copied figure.
  *
  * @property int $id
  * @property string $ulid
@@ -57,13 +65,45 @@ class Contract extends Model
     use BelongsToTenant;
 
     /** @use HasFactory<ContractFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
+
+    /**
+     * The award terms the amendment register protects. Design §1.7 phrases the
+     * rule as "immutable once `status != draft`", but the frozen ContractStatus
+     * enum has no draft case — a contract row comes into existence *awarded*
+     * (default `awarded`), because an intention to procure is not yet a
+     * contract. So the freeze applies from creation onward, which is the
+     * stricter and simpler reading of the same rule.
+     */
+    public const IMMUTABLE_TERMS = ['sum', 'award_date', 'contractor_id', 'scope_of_works'];
 
     protected static function booted(): void
     {
         static::creating(function (Contract $contract): void {
             $contract->ulid ??= (string) Str::ulid();
         });
+
+        // Model-level, not Action-level: TenantSafeBuilder proves that a guard
+        // living only in an Action is a guard a mass update walks past.
+        static::updating(function (Contract $contract): void {
+            foreach (self::IMMUTABLE_TERMS as $field) {
+                if ($contract->isDirty($field)) {
+                    throw ProjectRuleViolation::immutableContractField($field);
+                }
+            }
+        });
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('contracts')
+            ->logFillable()
+            // Money attributes are logged as their decimal strings: a Money
+            // value object JSON-encodes to {} and would record nothing.
+            ->useAttributeRawValues(['sum'])
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges();
     }
 
     protected function casts(): array
@@ -82,6 +122,18 @@ class Contract extends Model
     public function getRouteKeyName(): string
     {
         return 'ulid';
+    }
+
+    /**
+     * Overrides BelongsToTenant's builder with one that keeps the award terms
+     * immutable through mass updates too (see ContractBuilder). It still
+     * extends TenantSafeBuilder, so every tenancy guarantee is intact.
+     *
+     * @param  Builder  $query
+     */
+    public function newEloquentBuilder($query): ContractBuilder
+    {
+        return new ContractBuilder($query);
     }
 
     /** @return BelongsTo<Project, $this> */

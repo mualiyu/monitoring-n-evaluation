@@ -8,12 +8,6 @@ parameters:
         - database
         - routes
     reportUnmatchedIgnoredErrors: false
-    ignoreErrors:
-        # BelongsToTenant now has real app/ consumers (Project, Contract,
-        # ProjectLocation, ProjectAssignment, ProjectStatusEvent, Indicator),
-        # so its entry is gone. TenantAware is still exercised only by
-        # tests/Feature/Tenancy/* (Pest files are not analysable by PHPStan);
-        # REMOVE this entry once a queued job in app/ uses it.
-        -
-            identifier: trait.unused
-            path: app/Jobs/Concerns/TenantAware.php
+    # No ignoreErrors. BelongsToTenant and TenantAware both have real app/
+    # consumers now — the trait.unused entry for TenantAware was waiting for
+    # exactly this: app/Jobs/Projects/NotifyProjectStatusChange uses it.

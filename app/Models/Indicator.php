@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * An indicator definition — tenant-owned, carrying the full definition sheet
@@ -70,7 +72,7 @@ class Indicator extends Model
     use BelongsToTenant;
 
     /** @use HasFactory<IndicatorFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
 
     /** Result-framework tiers (Phase 2 promotes these to an enum + FK). */
     public const TIERS = ['pdo', 'intermediate', 'output'];
@@ -98,6 +100,20 @@ class Indicator extends Model
     public function getRouteKeyName(): string
     {
         return 'ulid';
+    }
+
+    /**
+     * A baseline that moves after activation rewrites every achievement
+     * percentage computed from it — which is precisely why the change has to
+     * leave a record.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('indicators')
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges();
     }
 
     /**

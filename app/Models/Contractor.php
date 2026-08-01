@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * The state's vendor registry — the one table in this module that looks like a
@@ -57,13 +59,27 @@ use Illuminate\Support\Str;
 class Contractor extends Model
 {
     /** @use HasFactory<ContractorFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
 
     protected static function booted(): void
     {
         static::creating(function (Contractor $contractor): void {
             $contractor->ulid ??= (string) Str::ulid();
         });
+    }
+
+    /**
+     * A blacklisting decides which firms may win public work state-wide, so
+     * who flipped the flag and what reason they gave is the audit question
+     * this log has to answer.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('contractors')
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges();
     }
 
     protected function casts(): array

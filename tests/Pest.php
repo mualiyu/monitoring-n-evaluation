@@ -6,6 +6,8 @@ use App\Enums\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
@@ -67,6 +69,18 @@ function ensureRoleDefined(Role $role): void
     $registrar->setPermissionsTeamId(null);
     Spatie\Permission\Models\Role::findOrCreate($role->value, 'web');
     $registrar->setPermissionsTeamId($previousTeam);
+}
+
+/**
+ * Seed roles + the permission matrix. Tests migrate without seeding, and an
+ * unseeded permission answers "no" to everything — which would make an
+ * authorization test pass for entirely the wrong reason. Any test that
+ * exercises a Policy or an Action calls this first.
+ */
+function seedPermissions(): void
+{
+    (new RoleSeeder)->run();
+    (new PermissionSeeder)->run();
 }
 
 /**

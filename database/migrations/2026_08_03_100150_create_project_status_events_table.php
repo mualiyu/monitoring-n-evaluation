@@ -12,10 +12,12 @@ return new class extends Migration
         // generically; this typed table is what makes "average days from award
         // to mobilization per MDA" one indexed query instead of JSON mining.
         // Append-only: no update/delete Action exists, hence no soft deletes.
+        // project_id restricts (migration review §5) — an audit ledger that a
+        // cascade can erase is not an audit ledger.
         Schema::create('project_status_events', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tenant_id')->constrained()->restrictOnDelete();
-            $table->foreignId('project_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('project_id')->constrained()->restrictOnDelete();
             $table->string('from_status', 20)->nullable();         // null = creation
             $table->string('to_status', 20);
             $table->foreignId('actor_id')->constrained('users')->restrictOnDelete();

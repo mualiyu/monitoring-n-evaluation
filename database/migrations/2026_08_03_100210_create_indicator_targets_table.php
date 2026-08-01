@@ -11,10 +11,14 @@ return new class extends Migration
         // Period targets: the indicator carries the target *type*, this table
         // carries the numbers per period. Values are decimal(18,4) — ratios
         // and rates need the extra places.
+        //
+        // indicator_id restricts, matching indicator_readings and the rest of
+        // the module (migration review §5): one delete story, applied
+        // everywhere, so a purge fails at the top instead of half-way down.
         Schema::create('indicator_targets', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tenant_id')->constrained()->restrictOnDelete();
-            $table->foreignId('indicator_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('indicator_id')->constrained()->restrictOnDelete();
             $table->string('period_type', 20);                     // MeasurementFrequency vocabulary
             $table->date('period_start');
             $table->date('period_end');

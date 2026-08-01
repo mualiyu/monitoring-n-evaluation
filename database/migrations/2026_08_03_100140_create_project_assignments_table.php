@@ -11,11 +11,12 @@ return new class extends Migration
         // Who is accountable for this project. No soft deletes: re-assignment
         // reactivates the row (unassigned_at = null) rather than inserting a
         // duplicate, so the unique key stays meaningful and the row is the
-        // audit record.
+        // audit record. project_id restricts, like every child of `projects`
+        // (migration review §5).
         Schema::create('project_assignments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tenant_id')->constrained()->restrictOnDelete();
-            $table->foreignId('project_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('project_id')->constrained()->restrictOnDelete();
             $table->foreignId('user_id')->constrained()->restrictOnDelete();
             $table->string('role', 30);                            // ProjectRole
             $table->foreignId('assigned_by_id')->constrained('users')->restrictOnDelete();

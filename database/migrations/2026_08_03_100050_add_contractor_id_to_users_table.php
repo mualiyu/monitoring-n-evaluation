@@ -12,8 +12,12 @@ return new class extends Migration
         // an open question (PROJECT_PLAN §9); the column is added now so that
         // answering "yes" later does not mean an ALTER on `users`. Nothing
         // reads or writes it, and no relation is defined until it is decided.
+        //
+        // No after('phone'): the clause is a no-op on SQLite, so it would make
+        // column order differ between the test and production databases for no
+        // benefit (migration review §8).
         Schema::table('users', function (Blueprint $table) {
-            $table->foreignId('contractor_id')->nullable()->after('phone')
+            $table->foreignId('contractor_id')->nullable()
                 ->constrained('contractors')->nullOnDelete();
         });
     }

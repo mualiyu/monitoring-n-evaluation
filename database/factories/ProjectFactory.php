@@ -2,9 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Enums\ContractStatus;
 use App\Enums\FundingSourceType;
 use App\Enums\ProjectStatus;
 use App\Enums\ProjectType;
+use App\Models\Contract;
+use App\Models\Contractor;
 use App\Models\FundingSource;
 use App\Models\Lga;
 use App\Models\Project;
@@ -256,8 +259,36 @@ class ProjectFactory extends Factory
     }
 
     /**
+     * The matching `contracts` row for a fixture whose `contract_value_total`
+     * was fabricated by financials() — use it whenever a test exercises the
+     * cache/source-of-truth relationship (awarding onto an existing project,
+     * variations, reconciliation), because without it the cache has no source
+     * and every recomputation legitimately disagrees with the fixture
+     * (migration review §6).
+     */
+    public function withContract(?Contractor $contractor = null): static
+    {
+        return $this->afterCreating(function (Project $project) use ($contractor): void {
+            $total = $project->contract_value_total;
+
+            Contract::factory()->forProject($project)->create([
+                'contractor_id' => ($contractor ?? Contractor::factory()->create())->id,
+                'sum' => $total ?? Money::zero(),
+                'created_by_id' => $project->created_by_id,
+                'status' => ContractStatus::Active,
+            ]);
+        });
+    }
+
+    /**
      * Contract value, allocation and expenditure consistent with a given
      * physical percentage — integer naira throughout.
+     *
+     * NOTE: these figures are intentionally DENORMALIZED. `contract_value_total`
+     * is a cache whose source of truth is `contracts`, and this state writes no
+     * contract row — so a test that recomputes the cache (AwardContract,
+     * RecordContractVariation, the Phase 2 reconcile command) must build its
+     * own contracts or use ->withContract() (migration review §6).
      *
      * @return array<string, string>
      */

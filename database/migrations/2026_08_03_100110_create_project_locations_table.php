@@ -16,10 +16,19 @@ return new class extends Migration
         // unique index, and the naive composite would wrongly cap non-primary
         // sites at one. SetPrimaryProjectLocation enforces single-primary in a
         // transaction instead, covered by a test.
+        //
+        // DELETE STORY: restrict, like every other child of `projects`
+        // (migration review §5). The module restricts all the way up rather
+        // than cascading all the way down, so a force-delete of a project that
+        // still has sites, contracts, assignments, status events or indicators
+        // fails at the project — loudly and in one place — instead of
+        // cascading into `indicators` and then dying on the readings FK.
+        // Purging a project is a deliberate act; it gets a PurgeProject Action
+        // that removes children in order, not an accidental cascade.
         Schema::create('project_locations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tenant_id')->constrained()->restrictOnDelete();
-            $table->foreignId('project_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('project_id')->constrained()->restrictOnDelete();
             $table->string('site_name')->nullable();                // "Ward 3 PHC", "Km 4–7 alignment"
             $table->text('description')->nullable();
             $table->foreignId('lga_id')->nullable()->constrained()->restrictOnDelete();

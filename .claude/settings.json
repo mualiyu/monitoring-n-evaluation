@@ -1,0 +1,32 @@
+{
+  "teammateMode": "auto",
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(composer:*)",
+      "Bash(php artisan:*)",
+      "Bash(php -v)",
+      "Bash(npm install)",
+      "Bash(npm run:*)",
+      "Bash(npx:*)",
+      "Bash(vendor/bin/pint:*)",
+      "Bash(vendor/bin/pest:*)",
+      "Bash(vendor/bin/phpstan:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git branch:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(storage/app/private/**)",
+      "Bash(rm -rf:*)"
+    ]
+  }
+}

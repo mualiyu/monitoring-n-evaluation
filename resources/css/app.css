@@ -1,0 +1,375 @@
+/* =============================================================================
+   M&E Platform — design tokens (Tailwind v4, CSS-first config)
+   -----------------------------------------------------------------------------
+   PLACEHOLDER PALETTE. The deep-green civic scale below is a stand-in until the
+   client styleguide lands. To re-skin the entire platform you change ONLY the
+   custom-property VALUES in :root / .dark (and, per tenant, the same properties
+   injected inline on <html> at runtime). Nothing else should ever need editing:
+
+     - every component references semantic tokens, never a raw hex;
+     - Tailwind utilities are mapped with `@theme inline`, so they resolve the
+       custom property at runtime — a tenant override cascades automatically;
+     - charts read the same tokens (see --chart-*), so dataviz re-skins too.
+
+   Rule of thumb: if you are typing "#" in a .blade.php file, stop.
+   ========================================================================== */
+
+@import 'tailwindcss';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+/* Dark mode is class-strategy: <html class="dark"> (set before paint, see shells). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* -----------------------------------------------------------------------------
+   1. Raw token values — light
+   -------------------------------------------------------------------------- */
+:root {
+    color-scheme: light;
+
+    /* Brand scale — dignified deep green (civic / public-service). */
+    --brand-50: oklch(0.976 0.015 155);
+    --brand-100: oklch(0.945 0.035 155);
+    --brand-200: oklch(0.893 0.062 155);
+    --brand-300: oklch(0.822 0.087 156);
+    --brand-400: oklch(0.724 0.105 157);
+    --brand-500: oklch(0.606 0.108 157);
+    --brand-600: oklch(0.492 0.098 158);
+    --brand-700: oklch(0.414 0.082 158);
+    --brand-800: oklch(0.344 0.066 159);
+    --brand-900: oklch(0.286 0.052 159);
+    --brand-950: oklch(0.203 0.038 160);
+
+    /* Brand, in its interactive role (buttons, active nav, links). */
+    --brand-interactive: var(--brand-600);
+    --brand-strong: var(--brand-700);
+    --brand-soft: oklch(0.955 0.028 156);
+    --brand-ink: var(--brand-700);
+    --on-brand: oklch(0.99 0 0);
+
+    /* Surfaces */
+    --surface: oklch(0.98 0.004 160);
+    --surface-raised: oklch(1 0 0);
+    --surface-sunken: oklch(0.958 0.006 160);
+    --surface-inverse: oklch(0.25 0.02 160);
+
+    /* Ink */
+    --ink: oklch(0.24 0.018 160);
+    --ink-muted: oklch(0.47 0.014 160);
+    --ink-subtle: oklch(0.6 0.012 160);
+    --ink-inverse: oklch(0.99 0 0);
+
+    /* Lines */
+    --line: oklch(0.905 0.008 160);
+    --line-strong: oklch(0.82 0.01 160);
+
+    /* Status — `-soft` is the tint background, `-ink` is AA text on that tint. */
+    --positive: oklch(0.52 0.13 152);
+    --positive-soft: oklch(0.955 0.03 152);
+    --positive-ink: oklch(0.4 0.1 152);
+
+    --warning: oklch(0.72 0.155 75);
+    --warning-soft: oklch(0.962 0.04 85);
+    --warning-ink: oklch(0.45 0.1 65);
+
+    --critical: oklch(0.55 0.2 27);
+    --critical-soft: oklch(0.958 0.025 25);
+    --critical-ink: oklch(0.45 0.17 27);
+    /* Fill for destructive buttons: dark enough for AA white label text. */
+    --critical-strong: oklch(0.47 0.19 27);
+    --on-critical: oklch(0.99 0 0);
+
+    --info: oklch(0.55 0.14 250);
+    --info-soft: oklch(0.958 0.025 250);
+    --info-ink: oklch(0.45 0.13 255);
+
+    --neutral-soft: oklch(0.945 0.005 160);
+    --neutral-ink: oklch(0.42 0.012 160);
+
+    /* Focus ring — sits on the surface via outline-offset, so it stays visible
+       on top of brand fills too. */
+    --focus: var(--brand-600);
+
+    /* Livewire injects its own navigate progress bar with a hard-coded default
+       (#2299dd) — the one colour on the page we do not otherwise control. */
+    --livewire-progress-bar-color: var(--brand-interactive);
+
+    /* Elevation (tokenised so dark mode can flatten shadows). */
+    --elevation-1: 0 1px 2px 0 oklch(0.24 0.018 160 / 0.06), 0 1px 3px 0 oklch(0.24 0.018 160 / 0.06);
+    --elevation-2: 0 2px 4px -2px oklch(0.24 0.018 160 / 0.08), 0 4px 12px -2px oklch(0.24 0.018 160 / 0.1);
+    --elevation-3: 0 8px 16px -6px oklch(0.24 0.018 160 / 0.14), 0 18px 40px -12px oklch(0.24 0.018 160 / 0.18);
+
+    /* Dataviz: ONE highlight, everything else neutral context. */
+    --chart-highlight: var(--brand-600);
+    --chart-1: oklch(0.68 0.02 160);
+    --chart-2: oklch(0.78 0.018 160);
+    --chart-3: oklch(0.86 0.014 160);
+    --chart-4: oklch(0.91 0.01 160);
+    --chart-grid: var(--line);
+    --chart-axis: var(--ink-subtle);
+}
+
+/* -----------------------------------------------------------------------------
+   2. Raw token values — dark
+   -------------------------------------------------------------------------- */
+.dark {
+    color-scheme: dark;
+
+    --brand-interactive: var(--brand-500);
+    --brand-strong: var(--brand-400);
+    --brand-soft: oklch(0.29 0.046 157);
+    --brand-ink: var(--brand-300);
+    /* On dark the brand fill is the light element, so its text goes dark. */
+    --on-brand: oklch(0.17 0.02 160);
+
+    --surface: oklch(0.19 0.012 160);
+    --surface-raised: oklch(0.235 0.014 160);
+    --surface-sunken: oklch(0.16 0.01 160);
+    --surface-inverse: oklch(0.95 0.006 160);
+
+    --ink: oklch(0.96 0.006 160);
+    --ink-muted: oklch(0.76 0.01 160);
+    --ink-subtle: oklch(0.62 0.01 160);
+    --ink-inverse: oklch(0.17 0.02 160);
+
+    --line: oklch(0.32 0.012 160);
+    --line-strong: oklch(0.42 0.014 160);
+
+    --positive: oklch(0.72 0.15 152);
+    --positive-soft: oklch(0.3 0.06 152);
+    --positive-ink: oklch(0.85 0.13 152);
+
+    --warning: oklch(0.8 0.15 80);
+    --warning-soft: oklch(0.32 0.06 75);
+    --warning-ink: oklch(0.88 0.12 85);
+
+    --critical: oklch(0.68 0.19 27);
+    --critical-soft: oklch(0.31 0.08 25);
+    --critical-ink: oklch(0.84 0.12 25);
+    --critical-strong: oklch(0.7 0.18 25);
+    --on-critical: oklch(0.17 0.02 160);
+
+    --info: oklch(0.7 0.14 250);
+    --info-soft: oklch(0.3 0.07 255);
+    --info-ink: oklch(0.86 0.09 250);
+
+    --neutral-soft: oklch(0.28 0.008 160);
+    --neutral-ink: oklch(0.8 0.01 160);
+
+    --focus: var(--brand-300);
+
+    --elevation-1: 0 1px 2px 0 oklch(0 0 0 / 0.4);
+    --elevation-2: 0 2px 6px -2px oklch(0 0 0 / 0.45), 0 6px 16px -4px oklch(0 0 0 / 0.4);
+    --elevation-3: 0 10px 24px -8px oklch(0 0 0 / 0.55), 0 24px 48px -16px oklch(0 0 0 / 0.5);
+
+    --chart-highlight: var(--brand-400);
+    --chart-1: oklch(0.55 0.02 160);
+    --chart-2: oklch(0.45 0.018 160);
+    --chart-3: oklch(0.37 0.014 160);
+    --chart-4: oklch(0.31 0.01 160);
+}
+
+/* -----------------------------------------------------------------------------
+   3. Tailwind theme mapping.
+   `inline` keeps utilities pointing at var(--token) instead of copying the value,
+   which is what makes .dark and per-tenant overrides work without recompiling.
+   -------------------------------------------------------------------------- */
+@theme inline {
+    --font-sans:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+
+    --color-brand-50: var(--brand-50);
+    --color-brand-100: var(--brand-100);
+    --color-brand-200: var(--brand-200);
+    --color-brand-300: var(--brand-300);
+    --color-brand-400: var(--brand-400);
+    --color-brand-500: var(--brand-500);
+    --color-brand-600: var(--brand-600);
+    --color-brand-700: var(--brand-700);
+    --color-brand-800: var(--brand-800);
+    --color-brand-900: var(--brand-900);
+    --color-brand-950: var(--brand-950);
+
+    --color-brand: var(--brand-interactive);
+    --color-brand-strong: var(--brand-strong);
+    --color-brand-soft: var(--brand-soft);
+    --color-brand-ink: var(--brand-ink);
+    --color-on-brand: var(--on-brand);
+
+    --color-surface: var(--surface);
+    --color-surface-raised: var(--surface-raised);
+    --color-surface-sunken: var(--surface-sunken);
+    --color-surface-inverse: var(--surface-inverse);
+
+    --color-ink: var(--ink);
+    --color-ink-muted: var(--ink-muted);
+    --color-ink-subtle: var(--ink-subtle);
+    --color-ink-inverse: var(--ink-inverse);
+
+    --color-line: var(--line);
+    --color-line-strong: var(--line-strong);
+
+    --color-positive: var(--positive);
+    --color-positive-soft: var(--positive-soft);
+    --color-positive-ink: var(--positive-ink);
+
+    --color-warning: var(--warning);
+    --color-warning-soft: var(--warning-soft);
+    --color-warning-ink: var(--warning-ink);
+
+    --color-critical: var(--critical);
+    --color-critical-soft: var(--critical-soft);
+    --color-critical-ink: var(--critical-ink);
+    --color-critical-strong: var(--critical-strong);
+    --color-on-critical: var(--on-critical);
+
+    --color-info: var(--info);
+    --color-info-soft: var(--info-soft);
+    --color-info-ink: var(--info-ink);
+
+    --color-neutral-soft: var(--neutral-soft);
+    --color-neutral-ink: var(--neutral-ink);
+
+    --color-focus: var(--focus);
+
+    --shadow-e1: var(--elevation-1);
+    --shadow-e2: var(--elevation-2);
+    --shadow-e3: var(--elevation-3);
+}
+
+/* -----------------------------------------------------------------------------
+   4. Base layer
+   -------------------------------------------------------------------------- */
+@layer base {
+    html {
+        -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+        background-color: var(--surface);
+        color: var(--ink);
+        font-family: var(--font-sans);
+        /* Field monitors read this on cheap panels, in sunlight. */
+        -webkit-font-smoothing: antialiased;
+    }
+
+    /* One visible focus ring for the whole platform (WCAG 2.2, 3:1 non-text). */
+    :focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: 2px;
+    }
+
+    ::placeholder {
+        color: var(--ink-subtle);
+        opacity: 1;
+    }
+
+    [hidden] {
+        display: none !important;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   5. Component-layer primitives that have no Tailwind equivalent
+   -------------------------------------------------------------------------- */
+@layer components {
+    .ui-skeleton {
+        background-color: var(--neutral-soft);
+        background-image: linear-gradient(
+            90deg,
+            transparent 0%,
+            color-mix(in oklab, var(--surface-raised) 70%, transparent) 50%,
+            transparent 100%
+        );
+        background-size: 200% 100%;
+        background-repeat: no-repeat;
+        animation: ui-shimmer 1.6s ease-in-out infinite;
+    }
+
+    /* Alpine: hide un-initialised markup so drawers/modals never flash open. */
+    [x-cloak] {
+        display: none !important;
+    }
+
+    /* Oversight surface tint — the state-level shell reads slightly cooler/greener
+       than an MDA workspace so nobody edits the wrong surface by accident. Derived
+       from the brand scale, so it re-skins automatically. (Colour is a reinforcement
+       only: the shell also shows a labelled "state-level oversight" chip.) */
+    .surface-oversight {
+        --surface: color-mix(in oklab, var(--brand-100) 45%, white);
+        --surface-sunken: color-mix(in oklab, var(--brand-100) 72%, white);
+    }
+
+    .dark .surface-oversight {
+        --surface: color-mix(in oklab, var(--brand-950) 55%, black);
+        --surface-sunken: color-mix(in oklab, var(--brand-950) 80%, black);
+    }
+
+    /* Shared form-control skin — used by <x-ui.form.input|select|textarea> so the
+       three of them never drift apart. 44px min height = field-monitor thumb. */
+    .ui-field {
+        display: block;
+        width: 100%;
+        min-height: 2.75rem;
+        padding: 0.625rem 0.75rem;
+        border: 1px solid var(--line);
+        border-radius: 0.5rem;
+        background-color: var(--surface-raised);
+        color: var(--ink);
+        font-size: 0.875rem;
+        line-height: 1.5rem;
+        box-shadow: var(--elevation-1);
+        transition:
+            border-color 150ms ease,
+            background-color 150ms ease;
+    }
+
+    .ui-field:hover:not(:disabled) {
+        border-color: var(--line-strong);
+    }
+
+    .ui-field:focus {
+        border-color: var(--brand-interactive);
+    }
+
+    .ui-field[aria-invalid='true'] {
+        border-color: var(--critical);
+    }
+
+    .ui-field:disabled,
+    .ui-field[readonly] {
+        background-color: var(--surface-sunken);
+        color: var(--ink-muted);
+        cursor: not-allowed;
+    }
+}
+
+@keyframes ui-shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+   6. Motion guard — respect the OS setting, always.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .ui-skeleton {
+        background-image: none;
+    }
+}

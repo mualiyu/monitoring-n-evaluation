@@ -1,0 +1,19 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 6
+    paths:
+        - app
+        - database
+        - routes
+    reportUnmatchedIgnoredErrors: false
+    ignoreErrors:
+        # BelongsToTenant now has real app/ consumers (Project, Contract,
+        # ProjectLocation, ProjectAssignment, ProjectStatusEvent, Indicator),
+        # so its entry is gone. TenantAware is still exercised only by
+        # tests/Feature/Tenancy/* (Pest files are not analysable by PHPStan);
+        # REMOVE this entry once a queued job in app/ uses it.
+        -
+            identifier: trait.unused
+            path: app/Jobs/Concerns/TenantAware.php

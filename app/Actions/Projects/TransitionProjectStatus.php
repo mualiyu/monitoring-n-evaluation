@@ -76,7 +76,7 @@ class TransitionProjectStatus
             // assignment is explicit and the chokepoint stays greppable.
             $project->forceFill($changes)->save();
 
-            ProjectStatusEvent::create([
+            $event = new ProjectStatusEvent([
                 'project_id' => $project->id,
                 'from_status' => $from,
                 'to_status' => $to,
@@ -84,6 +84,12 @@ class TransitionProjectStatus
                 'reason' => $reason,
                 'occurred_at' => now(),
             ]);
+            // Explicit property write (tenant_id is not fillable): on the
+            // oversight surface (suspend/close/cancel run inside a bypass with
+            // no tenant bound) auto-fill cannot supply it; the project itself
+            // is always the authority.
+            $event->tenant_id = $project->tenant_id;
+            $event->save();
         });
 
         // Fired after the write closes, never inside it. When this Action runs

@@ -10,6 +10,7 @@ use App\Actions\Projects\UpdateContractor;
 use App\Enums\FirmType;
 use App\Models\Contractor;
 use App\Models\User;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\Rule;
@@ -227,11 +228,31 @@ class ContractorRegistry extends Component
         return $trimmed === '' ? null : $trimmed;
     }
 
-    /** @return LengthAwarePaginator<int, Contractor> */
+    /**
+     * The register itself is global, but `withCount('contracts')` is not:
+     * Contract is tenant-owned, so the count subquery meets the fail-closed
+     * TenantScope — and this surface binds no tenant, so without a bypass the
+     * whole screen 500s.
+     *
+     * The bypass is therefore load-bearing, not incidental, and it is
+     * sanctioned here: app/Livewire/Oversight/ is on the discipline allowlist
+     * in tests/Unit/TenancyDisciplineTest.php precisely for reads like this
+     * one.
+     *
+     * ⚠ The number it produces is STATE-WIDE and is NOT the same figure as the
+     * identically-named column on the tenant-side ContractorIndex, which
+     * counts only the contracts of the workspace you are standing in. That is
+     * the right figure for each surface — a per-MDA count is meaningless to
+     * the state, and a state-wide count would leak volume between MDAs — but
+     * two different numbers under one word is a trap, so the column header
+     * here says "state-wide" out loud.
+     *
+     * @return LengthAwarePaginator<int, Contractor>
+     */
     #[Computed]
     public function contractors(): LengthAwarePaginator
     {
-        return Contractor::query()
+        return app(CurrentTenant::class)->bypass(fn (): LengthAwarePaginator => Contractor::query()
             ->when($this->search !== '', function (Builder $query): void {
                 $term = '%'.str_replace(['%', '_'], ['\%', '\_'], trim($this->search)).'%';
 
@@ -244,7 +265,7 @@ class ContractorRegistry extends Component
             ->when($this->blacklistedOnly, fn (Builder $q) => $q->where('is_blacklisted', true))
             ->withCount('contracts')
             ->orderBy('name')
-            ->paginate(25);
+            ->paginate(25));
     }
 
     /** @return array{total: int, blacklisted: int} */

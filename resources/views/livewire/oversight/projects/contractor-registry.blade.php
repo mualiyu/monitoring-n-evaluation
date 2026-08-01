@@ -78,7 +78,7 @@
                 <x-ui.table
                     :caption="__('State vendor register')"
                     class="p-4 sm:p-0"
-                    :headings="[__('Firm'), __('Type'), ['label' => __('Contracts'), 'align' => 'right'], __('Status'), '']"
+                    :headings="[__('Firm'), __('Type'), ['label' => __('Contracts (state-wide)'), 'align' => 'right'], __('Status'), '']"
                 >
                     @foreach ($this->contractors as $contractor)
                         <x-ui.table.row wire:key="registry-{{ $contractor->id }}">
@@ -94,7 +94,7 @@
                                 <span class="text-ink-muted">{{ $contractor->type->label() }}</span>
                             </x-ui.table.cell>
 
-                            <x-ui.table.cell :label="__('Contracts')" numeric>{{ number_format($contractor->contracts_count) }}</x-ui.table.cell>
+                            <x-ui.table.cell :label="__('Contracts (state-wide)')" numeric>{{ number_format($contractor->contracts_count) }}</x-ui.table.cell>
 
                             <x-ui.table.cell :label="__('Status')">
                                 @if ($contractor->is_blacklisted)

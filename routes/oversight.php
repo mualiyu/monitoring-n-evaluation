@@ -37,7 +37,11 @@ Route::middleware([
     */
     Route::get('/portfolio', Portfolio::class)->name('portfolio.index');
     Route::get('/portfolio/{tenant:slug}', TenantPortfolio::class)->name('portfolio.tenant');
-    Route::get('/projects/{project}', ProjectView::class)->name('projects.show');
+    // `{ulid}`, not `{project}`: a parameter named after the model would be
+    // picked up by Livewire's implicit route binding and resolved before this
+    // surface's middleware runs — with no tenant bound, that is a 500 for
+    // everyone rather than a 403 for the wrong people. See ProjectView::mount().
+    Route::get('/projects/{ulid}', ProjectView::class)->name('projects.show');
     Route::get('/contractors', ContractorRegistry::class)->name('contractors.index');
 });
 

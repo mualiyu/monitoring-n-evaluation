@@ -49,7 +49,21 @@ class ProjectView extends Component
         ProjectStatus::Cancelled,
     ];
 
-    public function mount(string $project): void
+    /**
+     * The route parameter is `{ulid}`, deliberately NOT `{project}`.
+     *
+     * Livewire's ImplicitRouteBinding matches route parameters against the
+     * types of public properties and mount arguments; a parameter named
+     * `project` would find the `Project` property below, treat it as a
+     * route-model binding and resolve it itself — outside the bypass, with no
+     * tenant bound, straight into the fail-closed TenantScope. That happens in
+     * SubstituteBindings, i.e. BEFORE this surface's role middleware, so the
+     * page 500s for everyone instead of 403ing the people it should.
+     *
+     * Naming the parameter after the column it carries keeps the binder out of
+     * it and leaves the resolution here, next to the permission check.
+     */
+    public function mount(string $ulid): void
     {
         /** @var User $user */
         $user = auth()->user();
@@ -59,7 +73,7 @@ class ProjectView extends Component
         $this->project = app(CurrentTenant::class)->bypass(
             fn (): Project => Project::query()
                 ->with(['tenant:id,name,slug', 'sector:id,name'])
-                ->where('ulid', $project)
+                ->where('ulid', $ulid)
                 ->firstOrFail()
         );
     }

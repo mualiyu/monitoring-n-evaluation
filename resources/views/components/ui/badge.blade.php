@@ -3,8 +3,13 @@
     (colour-blind users, greyscale printing of board packs, sunlight on a cheap panel).
 
     Props
-      status   draft | submitted | under_review | approved | rejected | overdue
-               | on_track | behind | completed | certified | on_hold | cancelled
+      status   Report lifecycle: draft | submitted | under_review | approved | rejected
+               Delivery health:  overdue | on_track | behind
+               Project lifecycle (App\Enums\ProjectStatus): draft | awarded | mobilized
+                 | in_progress | completed | certified | closed | suspended | cancelled
+               Generic: on_hold
+
+               Pass the enum straight through — <x-ui.badge :status="$project->status->value" />
       label    override the default wording (terminology is configurable per instance)
       size     sm | md
       icon     override the default icon
@@ -36,6 +41,15 @@
         'certified' => ['icon' => 'shield-check', 'label' => __('Certified'), 'tone' => 'brand'],
         'on_hold' => ['icon' => 'pause-circle', 'label' => __('On hold'), 'tone' => 'warning'],
         'cancelled' => ['icon' => 'x-mark', 'label' => __('Cancelled'), 'tone' => 'neutral'],
+
+        // Project lifecycle (§2 state machine). Tone follows the arc: nothing
+        // committed (neutral) → committed (info) → work happening (brand) →
+        // finished (positive/brand) → stopped (warning).
+        'awarded' => ['icon' => 'clipboard-check', 'label' => __('Awarded'), 'tone' => 'info'],
+        'mobilized' => ['icon' => 'map-pin', 'label' => __('Mobilized'), 'tone' => 'info'],
+        'in_progress' => ['icon' => 'arrow-path', 'label' => __('In progress'), 'tone' => 'brand'],
+        'closed' => ['icon' => 'check-circle', 'label' => __('Closed'), 'tone' => 'neutral'],
+        'suspended' => ['icon' => 'pause-circle', 'label' => __('Suspended'), 'tone' => 'warning'],
     ];
 
     $config = $map[$status] ?? [

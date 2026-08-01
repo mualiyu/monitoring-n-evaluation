@@ -29,27 +29,46 @@
     // Placeholder structure until the route names exist; hrefs stay '#' deliberately.
     $navigation = $navigation ?? [
         ['items' => [
-            ['label' => __('Dashboard'), 'icon' => 'squares', 'href' => '#', 'active' => true],
-            ['label' => __('Switch workspace'), 'icon' => 'arrows-right-left', 'href' => url('/workspaces')],
+            [
+                'label' => __('Dashboard'),
+                'icon' => 'squares',
+                'href' => route('tenant.dashboard'),
+                'active' => request()->routeIs('tenant.dashboard'),
+            ],
+            [
+                'label' => __('Switch workspace'),
+                'icon' => 'arrows-right-left',
+                'href' => route('tenant.workspaces'),
+                'active' => request()->routeIs('tenant.workspaces'),
+            ],
         ]],
         ['label' => __('Delivery'), 'items' => [
-            ['label' => __('Projects'), 'icon' => 'folder', 'href' => '#'],
-            ['label' => __('Contracts'), 'icon' => 'banknotes', 'href' => '#'],
-            ['label' => __('Consultants'), 'icon' => 'users', 'href' => '#'],
+            [
+                'label' => __('Projects'),
+                'icon' => 'folder',
+                'href' => route('tenant.projects.index'),
+                'active' => request()->routeIs('tenant.projects.*'),
+            ],
+            [
+                'label' => __('Contractors'),
+                'icon' => 'building-office',
+                'href' => route('tenant.contractors.index'),
+                'active' => request()->routeIs('tenant.contractors.*'),
+            ],
         ]],
         ['label' => __('Monitoring'), 'items' => [
-            ['label' => __('Progress reports'), 'icon' => 'document-text', 'href' => '#', 'badge' => 6],
-            ['label' => __('Site inspections'), 'icon' => 'clipboard-check', 'href' => '#'],
-            ['label' => __('Field visits'), 'icon' => 'map-pin', 'href' => '#'],
+            ['label' => __('Progress reports'), 'icon' => 'document-text', 'href' => '#', 'badge' => 6, 'disabled' => true],
+            ['label' => __('Site inspections'), 'icon' => 'clipboard-check', 'href' => '#', 'disabled' => true],
+            ['label' => __('Field visits'), 'icon' => 'map-pin', 'href' => '#', 'disabled' => true],
         ]],
         ['label' => __('Evaluation'), 'items' => [
-            ['label' => __('Indicators'), 'icon' => 'chart-bar', 'href' => '#'],
-            ['label' => __('Evaluations'), 'icon' => 'clipboard-check', 'href' => '#'],
-            ['label' => __('Stakeholder feedback'), 'icon' => 'chat-bubble', 'href' => '#'],
+            ['label' => __('Indicators'), 'icon' => 'chart-bar', 'href' => '#', 'disabled' => true],
+            ['label' => __('Evaluations'), 'icon' => 'clipboard-check', 'href' => '#', 'disabled' => true],
+            ['label' => __('Stakeholder feedback'), 'icon' => 'chat-bubble', 'href' => '#', 'disabled' => true],
         ]],
         ['label' => __('Administration'), 'collapsed' => true, 'items' => [
-            ['label' => __('Users & roles'), 'icon' => 'users', 'href' => '#'],
-            ['label' => __('Workspace settings'), 'icon' => 'cog', 'href' => '#'],
+            ['label' => __('Users & roles'), 'icon' => 'users', 'href' => '#', 'disabled' => true],
+            ['label' => __('Workspace settings'), 'icon' => 'cog', 'href' => '#', 'disabled' => true],
         ]],
     ];
 @endphp

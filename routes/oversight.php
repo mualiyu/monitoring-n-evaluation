@@ -1,6 +1,10 @@
 <?php
 
 use App\Http\Controllers\Iam\InvitationController;
+use App\Livewire\Oversight\Projects\ContractorRegistry;
+use App\Livewire\Oversight\Projects\Portfolio;
+use App\Livewire\Oversight\Projects\ProjectView;
+use App\Livewire\Oversight\Projects\TenantPortfolio;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -25,6 +29,16 @@ Route::middleware([
     })->name('dashboard');
 
     Route::view('/two-factor/setup', 'auth.two-factor-setup')->name('two-factor.setup');
+
+    /*
+    | Portfolio (design §5). Cross-MDA reads happen inside the Oversight
+    | Actions, which re-check `oversight.portfolio.view` in the GLOBAL
+    | permission team before any tenancy bypass.
+    */
+    Route::get('/portfolio', Portfolio::class)->name('portfolio.index');
+    Route::get('/portfolio/{tenant:slug}', TenantPortfolio::class)->name('portfolio.tenant');
+    Route::get('/projects/{project}', ProjectView::class)->name('projects.show');
+    Route::get('/contractors', ContractorRegistry::class)->name('contractors.index');
 });
 
 Route::middleware(['guest', 'throttle:invitations'])->group(function () {

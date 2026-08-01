@@ -18,25 +18,41 @@
 
     $navigation = $navigation ?? [
         ['items' => [
-            ['label' => __('State dashboard'), 'icon' => 'squares', 'href' => '#', 'active' => true],
+            [
+                'label' => __('State dashboard'),
+                'icon' => 'squares',
+                'href' => route('oversight.dashboard'),
+                'active' => request()->routeIs('oversight.dashboard'),
+            ],
         ]],
         ['label' => __('Portfolio'), 'items' => [
-            ['label' => __('All projects'), 'icon' => 'folder', 'href' => '#'],
-            ['label' => __('Budget performance'), 'icon' => 'banknotes', 'href' => '#'],
-            ['label' => __('Sector analysis'), 'icon' => 'chart-bar', 'href' => '#'],
-            ['label' => __('Project map'), 'icon' => 'map-pin', 'href' => '#'],
+            [
+                'label' => __('All projects'),
+                'icon' => 'folder',
+                'href' => route('oversight.portfolio.index'),
+                'active' => request()->routeIs('oversight.portfolio.*') || request()->routeIs('oversight.projects.*'),
+            ],
+            ['label' => __('Budget performance'), 'icon' => 'banknotes', 'href' => '#', 'disabled' => true],
+            ['label' => __('Sector analysis'), 'icon' => 'chart-bar', 'href' => '#', 'disabled' => true],
+            ['label' => __('Project map'), 'icon' => 'map-pin', 'href' => '#', 'disabled' => true],
         ]],
         ['label' => __('Assurance'), 'items' => [
-            ['label' => __('Reports awaiting review'), 'icon' => 'document-text', 'href' => '#', 'badge' => 12],
-            ['label' => __('Evaluations'), 'icon' => 'clipboard-check', 'href' => '#'],
-            ['label' => __('Publishing queue'), 'icon' => 'globe', 'href' => '#', 'badge' => 3],
+            ['label' => __('Reports awaiting review'), 'icon' => 'document-text', 'href' => '#', 'badge' => 12, 'disabled' => true],
+            ['label' => __('Evaluations'), 'icon' => 'clipboard-check', 'href' => '#', 'disabled' => true],
+            ['label' => __('Publishing queue'), 'icon' => 'globe', 'href' => '#', 'badge' => 3, 'disabled' => true],
         ]],
         ['label' => __('Administration'), 'items' => [
-            ['label' => __('Entities & workspaces'), 'icon' => 'building-office', 'href' => '#'],
-            ['label' => __('Users & roles'), 'icon' => 'users', 'href' => '#'],
-            ['label' => __('Indicator library'), 'icon' => 'adjustments', 'href' => '#'],
-            ['label' => __('Audit log'), 'icon' => 'shield-check', 'href' => '#'],
-            ['label' => __('Instance settings'), 'icon' => 'cog', 'href' => '#'],
+            ['label' => __('Entities & workspaces'), 'icon' => 'building-office', 'href' => '#', 'disabled' => true],
+            [
+                'label' => __('Vendor registry'),
+                'icon' => 'clipboard-check',
+                'href' => route('oversight.contractors.index'),
+                'active' => request()->routeIs('oversight.contractors.*'),
+            ],
+            ['label' => __('Users & roles'), 'icon' => 'users', 'href' => '#', 'disabled' => true],
+            ['label' => __('Indicator library'), 'icon' => 'adjustments', 'href' => '#', 'disabled' => true],
+            ['label' => __('Audit log'), 'icon' => 'shield-check', 'href' => '#', 'disabled' => true],
+            ['label' => __('Instance settings'), 'icon' => 'cog', 'href' => '#', 'disabled' => true],
         ]],
     ];
 @endphp

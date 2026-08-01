@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Casts\MoneyCast;
 use App\Enums\ProjectStatus;
 use App\Enums\ProjectType;
+use App\Enums\Role;
 use App\Models\Concerns\BelongsToTenant;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
@@ -67,14 +68,17 @@ use LogicException;
  * @property int|null $manager_id
  * @property CarbonImmutable|null $status_changed_at
  */
+// Guarded-by-omission (migration review §2): status, contract_value_total,
+// expenditure_to_date, physical_progress, mid_term_flagged_at,
+// status_changed_at and post_completion_review_due_at are NOT fillable —
+// their chokepoint Actions assign them explicitly (forceFill/property write),
+// so no ->update($request->validated()) can ever bypass the §2 guards.
 #[Fillable([
     'reference', 'title', 'description', 'goal', 'objectives', 'sector_id',
-    'type', 'status', 'supervising_agency_id', 'supervising_agency_name',
-    'budget_allocation', 'budget_code', 'contract_value_total',
-    'expenditure_to_date', 'physical_progress', 'start_date',
+    'type', 'supervising_agency_id', 'supervising_agency_name',
+    'budget_allocation', 'budget_code', 'start_date',
     'expected_end_date', 'revised_end_date', 'actual_end_date',
-    'post_completion_review_due_at', 'mid_term_flagged_at',
-    'reporting_frequency', 'created_by_id', 'manager_id', 'status_changed_at',
+    'reporting_frequency', 'created_by_id', 'manager_id',
 ])]
 class Project extends Model
 {
@@ -256,7 +260,18 @@ class Project extends Model
      */
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
-        return $query;
+        // Users holding ONLY project-level roles (Consultant / FieldMonitor)
+        // in the current team see just their active assignments; everyone
+        // else sees the tenant portfolio (TenantScope already confines it).
+        $projectLevelOnly = ($user->hasRole(Role::Consultant->value)
+                || $user->hasRole(Role::FieldMonitor->value))
+            && ! $user->hasRole(Role::MdaAdmin->value)
+            && ! $user->hasRole(Role::MeOfficer->value);
+
+        return $query->when($projectLevelOnly, fn (Builder $q) => $q
+            ->whereHas('assignments', fn (Builder $a) => $a
+                ->where('user_id', $user->id)
+                ->whereNull('unassigned_at')));
     }
 
     /**

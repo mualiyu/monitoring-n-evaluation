@@ -21,7 +21,7 @@
             [
                 'label' => __('State dashboard'),
                 'icon' => 'squares',
-                'href' => route('oversight.dashboard'),
+                'href' => url('/'),
                 'active' => request()->routeIs('oversight.dashboard'),
             ],
         ]],
@@ -29,7 +29,7 @@
             [
                 'label' => __('All projects'),
                 'icon' => 'folder',
-                'href' => route('oversight.portfolio.index'),
+                'href' => url('/portfolio'),
                 'active' => request()->routeIs('oversight.portfolio.*') || request()->routeIs('oversight.projects.*'),
             ],
             ['label' => __('Budget performance'), 'icon' => 'banknotes', 'href' => '#', 'disabled' => true],
@@ -46,7 +46,7 @@
             [
                 'label' => __('Vendor registry'),
                 'icon' => 'clipboard-check',
-                'href' => route('oversight.contractors.index'),
+                'href' => url('/contractors'),
                 'active' => request()->routeIs('oversight.contractors.*'),
             ],
             ['label' => __('Users & roles'), 'icon' => 'users', 'href' => '#', 'disabled' => true],

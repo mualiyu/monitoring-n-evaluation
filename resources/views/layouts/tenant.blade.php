@@ -32,13 +32,13 @@
             [
                 'label' => __('Dashboard'),
                 'icon' => 'squares',
-                'href' => route('tenant.dashboard'),
+                'href' => url('/'),
                 'active' => request()->routeIs('tenant.dashboard'),
             ],
             [
                 'label' => __('Switch workspace'),
                 'icon' => 'arrows-right-left',
-                'href' => route('tenant.workspaces'),
+                'href' => url('/workspaces'),
                 'active' => request()->routeIs('tenant.workspaces'),
             ],
         ]],
@@ -46,13 +46,13 @@
             [
                 'label' => __('Projects'),
                 'icon' => 'folder',
-                'href' => route('tenant.projects.index'),
+                'href' => url('/projects'),
                 'active' => request()->routeIs('tenant.projects.*'),
             ],
             [
                 'label' => __('Contractors'),
                 'icon' => 'building-office',
-                'href' => route('tenant.contractors.index'),
+                'href' => url('/contractors'),
                 'active' => request()->routeIs('tenant.contractors.*'),
             ],
         ]],

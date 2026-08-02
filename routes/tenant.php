@@ -6,6 +6,9 @@ use App\Livewire\Tenant\Projects\ContractorIndex;
 use App\Livewire\Tenant\Projects\ProjectCreate;
 use App\Livewire\Tenant\Projects\ProjectDetail;
 use App\Livewire\Tenant\Projects\ProjectIndex;
+use App\Livewire\Tenant\Reporting\ReportForm;
+use App\Livewire\Tenant\Reporting\ReportIndex;
+use App\Livewire\Tenant\Reporting\ReportReview;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -40,6 +43,17 @@ Route::middleware(['auth', 'active', 'tenant.member', '2fa.require'])->group(fun
     Route::get('/projects/{project}', ProjectDetail::class)->name('projects.show');
 
     Route::get('/contractors', ContractorIndex::class)->name('contractors.index');
+
+    /*
+    | Progress reporting (progress-reporting.md §6). `/create` is declared
+    | before `/{report}` — otherwise "create" binds as a report ULID and the
+    | wizard 404s. `{report}` resolves by ULID through the TenantScope, so
+    | another MDA's public id is a 404 rather than a leak.
+    */
+    Route::get('/reports', ReportIndex::class)->name('reports.index');
+    Route::get('/reports/create', ReportForm::class)->name('reports.create');
+    Route::get('/reports/{report}', ReportReview::class)->name('reports.show');
+    Route::get('/reports/{report}/edit', ReportForm::class)->name('reports.edit');
 });
 
 Route::middleware(['guest', 'throttle:invitations'])->group(function () {

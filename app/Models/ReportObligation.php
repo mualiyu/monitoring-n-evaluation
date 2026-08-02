@@ -117,6 +117,23 @@ class ReportObligation extends Model
     }
 
     /**
+     * Whole calendar days until the deadline — negative once it has passed.
+     *
+     * ONE definition, shared by the reminder ladder and by the countdown on
+     * the reporting desk, because a screen that says "due in 3 days" while the
+     * engine is sending the 2-day reminder destroys trust in both. Days, not
+     * hours: "due in 3 days" has to mean the same thing to a deadline at 23:59
+     * as to one at 09:00, or the ladder fires a day early for half the
+     * calendar.
+     */
+    public function daysToDue(?CarbonImmutable $asOf = null): int
+    {
+        $asOf ??= CarbonImmutable::now();
+
+        return (int) $asOf->startOfDay()->diffInDays($this->due_at->startOfDay(), false);
+    }
+
+    /**
      * Rows the deadline engine still chases.
      *
      * @param  Builder<self>  $query
@@ -125,5 +142,25 @@ class ReportObligation extends Model
     public function scopeOutstanding(Builder $query): Builder
     {
         return $query->where('status', ReportObligationStatus::Pending);
+    }
+
+    /**
+     * Obligations a user may see: consultants and field monitors see only the
+     * projects they are actively assigned to.
+     *
+     * Delegated to Project::scopeVisibleTo — the single definition of "which
+     * projects may this user see" — so the reporting inbox, the project
+     * register and every policy answer the question the same way. MDA-level
+     * obligations (no project) are workspace-wide by nature and stay visible
+     * to anyone who may read reports at all.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        return $query->where(fn (Builder $scoped) => $scoped
+            ->whereNull('project_id')
+            ->orWhereIn('project_id', Project::query()->visibleTo($user)->select('id')));
     }
 }

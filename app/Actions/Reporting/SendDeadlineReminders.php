@@ -77,8 +77,10 @@ class SendDeadlineReminders
      */
     private function remind(ReportObligation $obligation, array $ladder, CarbonImmutable $asOf): int
     {
-        $daysToDue = $this->daysToDue($obligation, $asOf);
-        $stage = $this->stageFor($daysToDue, $ladder);
+        // The model owns the definition of "days to due" — the reporting desk
+        // renders its countdown from the same method, so a screen can never
+        // disagree with the reminder it is about to receive.
+        $stage = $this->stageFor($obligation->daysToDue($asOf), $ladder);
 
         if ($stage <= $obligation->reminder_stage) {
             return 0;
@@ -102,17 +104,6 @@ class SendDeadlineReminders
 
             return 1;
         });
-    }
-
-    /**
-     * Whole calendar days between today and the deadline's day — not hours.
-     * "Due in 3 days" has to mean the same thing to an obligation due at
-     * 23:59 as to one due at 09:00, or the ladder fires a day early for half
-     * the calendar.
-     */
-    private function daysToDue(ReportObligation $obligation, CarbonImmutable $asOf): int
-    {
-        return (int) $asOf->startOfDay()->diffInDays($obligation->due_at->startOfDay(), false);
     }
 
     /**

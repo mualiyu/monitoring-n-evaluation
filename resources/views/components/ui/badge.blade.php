@@ -42,6 +42,20 @@
         'on_hold' => ['icon' => 'pause-circle', 'label' => __('On hold'), 'tone' => 'warning'],
         'cancelled' => ['icon' => 'x-mark', 'label' => __('Cancelled'), 'tone' => 'neutral'],
 
+        // Progress-report chain (progress-reporting.md §2). `returned` is
+        // deliberately WARNING rather than critical: a returned report is not a
+        // rejection, it is work coming back to its author, and colouring it
+        // like a failure teaches consultants to read the review step as
+        // punishment.
+        'reviewed' => ['icon' => 'clipboard-check', 'label' => __('Reviewed'), 'tone' => 'info'],
+        'returned' => ['icon' => 'arrow-uturn-left', 'label' => __('Returned'), 'tone' => 'warning'],
+
+        // Report obligations (§1.2) — the vocabulary of the compliance board.
+        'pending' => ['icon' => 'clock', 'label' => __('Not yet filed'), 'tone' => 'neutral'],
+        'fulfilled' => ['icon' => 'check-circle', 'label' => __('Filed'), 'tone' => 'positive'],
+        'waived' => ['icon' => 'pause-circle', 'label' => __('Waived'), 'tone' => 'neutral'],
+        'missed' => ['icon' => 'exclamation-triangle', 'label' => __('Missed'), 'tone' => 'critical'],
+
         // Project lifecycle (§2 state machine). Tone follows the arc: nothing
         // committed (neutral) → committed (info) → work happening (brand) →
         // finished (positive/brand) → stopped (warning).

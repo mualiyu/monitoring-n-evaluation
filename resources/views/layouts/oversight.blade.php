@@ -16,6 +16,16 @@
     $userRole = $userRole ?? null;
     $density = 'compact';
 
+    // Live badge for the assurance queue. The Action owns the cross-MDA read,
+    // the authorization behind it and a 60-second cache — a nav badge renders
+    // on every page of this surface, so it must never cost a scan per view.
+    // It returns null for a user without oversight authority: chrome is the
+    // wrong place to raise an authorization exception, and the screens behind
+    // the badge do that themselves.
+    $awaitingReview = auth()->check()
+        ? (new \App\Actions\Oversight\CountReportsAwaitingReview)(auth()->user())
+        : null;
+
     $navigation = $navigation ?? [
         ['items' => [
             [
@@ -37,7 +47,20 @@
             ['label' => __('Project map'), 'icon' => 'map-pin', 'href' => '#', 'disabled' => true],
         ]],
         ['label' => __('Assurance'), 'items' => [
-            ['label' => __('Reports awaiting review'), 'icon' => 'document-text', 'href' => '#', 'badge' => 12, 'disabled' => true],
+            [
+                'label' => __('Reporting compliance'),
+                'icon' => 'chart-bar',
+                'href' => url('/compliance'),
+                'active' => request()->routeIs('oversight.compliance.*'),
+            ],
+            [
+                'label' => __('Reports awaiting review'),
+                'icon' => 'document-text',
+                'href' => url('/compliance'),
+                // Null (no oversight authority) and zero (nothing pending)
+                // both render without a chip — a badge that says "0" is noise.
+                'badge' => $awaitingReview ?: null,
+            ],
             ['label' => __('Evaluations'), 'icon' => 'clipboard-check', 'href' => '#', 'disabled' => true],
             ['label' => __('Publishing queue'), 'icon' => 'globe', 'href' => '#', 'badge' => 3, 'disabled' => true],
         ]],

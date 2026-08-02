@@ -57,7 +57,12 @@
             ],
         ]],
         ['label' => __('Monitoring'), 'items' => [
-            ['label' => __('Progress reports'), 'icon' => 'document-text', 'href' => '#', 'badge' => 6, 'disabled' => true],
+            [
+                'label' => __('Progress reports'),
+                'icon' => 'document-text',
+                'href' => url('/reports'),
+                'active' => request()->routeIs('tenant.reports.*'),
+            ],
             ['label' => __('Site inspections'), 'icon' => 'clipboard-check', 'href' => '#', 'disabled' => true],
             ['label' => __('Field visits'), 'icon' => 'map-pin', 'href' => '#', 'disabled' => true],
         ]],

@@ -79,40 +79,15 @@
         />
     </div>
 
+    {{--
+        Live reporting widgets. Both are LAZY: the shell and the KPI row paint
+        immediately, and each card fills in behind its own skeleton rather than
+        holding the whole dashboard on its query. Both scope themselves with
+        visibleTo(), so a consultant lands on their own work and a director on
+        the workspace's.
+    --}}
     <div class="mt-6 grid gap-4 lg:grid-cols-2">
-        <x-ui.card :title="__('Recent progress reports')" :subtitle="__('Submissions from consultants and field monitors')">
-            <x-slot:actions>
-                <x-ui.button variant="ghost" size="sm" trailing-icon="chevron-right">{{ __('View all') }}</x-ui.button>
-            </x-slot:actions>
-
-            <x-ui.empty-state
-                compact
-                icon="document-text"
-                :title="__('No reports submitted yet')"
-                :description="__('Once consultants submit quarterly progress reports, the latest ten appear here for review.')"
-            >
-                <x-slot:actions>
-                    <x-ui.button size="sm" icon="plus">{{ __('Request a report') }}</x-ui.button>
-                    <x-ui.button size="sm" variant="secondary" icon="calendar-days">{{ __('Set reporting schedule') }}</x-ui.button>
-                </x-slot:actions>
-            </x-ui.empty-state>
-        </x-ui.card>
-
-        <x-ui.card :title="__('Upcoming deadlines')" :subtitle="__('Next 30 days')">
-            <x-slot:actions>
-                <x-ui.button variant="ghost" size="sm" trailing-icon="chevron-right">{{ __('Full calendar') }}</x-ui.button>
-            </x-slot:actions>
-
-            <x-ui.empty-state
-                compact
-                icon="calendar-days"
-                :title="__('Nothing due in the next 30 days')"
-                :description="__('Reporting deadlines and scheduled site inspections will be listed here as they approach.')"
-            >
-                <x-slot:actions>
-                    <x-ui.button size="sm" variant="secondary" icon="map-pin">{{ __('Schedule an inspection') }}</x-ui.button>
-                </x-slot:actions>
-            </x-ui.empty-state>
-        </x-ui.card>
+        <livewire:tenant.reporting.recent-reports-card lazy />
+        <livewire:tenant.reporting.upcoming-deadlines-card lazy />
     </div>
 @endsection

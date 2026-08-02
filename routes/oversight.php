@@ -5,6 +5,7 @@ use App\Livewire\Oversight\Projects\ContractorRegistry;
 use App\Livewire\Oversight\Projects\Portfolio;
 use App\Livewire\Oversight\Projects\ProjectView;
 use App\Livewire\Oversight\Projects\TenantPortfolio;
+use App\Livewire\Oversight\Reporting\ComplianceBoard;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -43,6 +44,14 @@ Route::middleware([
     // everyone rather than a 403 for the wrong people. See ProjectView::mount().
     Route::get('/projects/{ulid}', ProjectView::class)->name('projects.show');
     Route::get('/contractors', ContractorRegistry::class)->name('contractors.index');
+
+    /*
+    | The rewards-and-sanctions board (progress-reporting.md §3.1). Like the
+    | portfolio, the cross-MDA read happens inside an Oversight Action which
+    | re-checks `oversight.compliance.view` in the GLOBAL permission team
+    | before any tenancy bypass.
+    */
+    Route::get('/compliance', ComplianceBoard::class)->name('compliance.index');
 });
 
 Route::middleware(['guest', 'throttle:invitations'])->group(function () {

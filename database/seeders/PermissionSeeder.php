@@ -137,6 +137,17 @@ class PermissionSeeder extends Seeder
             // Oversight
             'oversight.portfolio.view' => $oversight,
             'oversight.compliance.view' => $oversight,
+
+            // Users & workspace membership (auth-surfaces.md §2–3). These
+            // decide who may SEE and OPERATE the member-management screens;
+            // WHICH roles an inviter may offer is a separate contract that
+            // lives on the enum (Role::invitableBy) and inside InviteUser.
+            // ExecutiveViewer and DataQualityReviewer hold none of them:
+            // staffing the platform is administration, not analysis, and both
+            // are read-only roles (design §7).
+            'users.view' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, ...$mdaStaff],
+            'users.invite' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, RoleEnum::MdaAdmin],
+            'users.manage' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, RoleEnum::MdaAdmin],
         ];
     }
 }

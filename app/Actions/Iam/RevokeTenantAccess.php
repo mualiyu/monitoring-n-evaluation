@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  */
 class RevokeTenantAccess
 {
-    public function __invoke(User $user, Tenant $tenant): void
+    public function __invoke(User $user, Tenant $tenant, ?User $actor = null, ?string $reason = null): void
     {
         DB::transaction(function () use ($user, $tenant): void {
             TenantMembership::query()
@@ -30,11 +30,29 @@ class RevokeTenantAccess
             app(CurrentTenant::class)->runAs($tenant, function () use ($user): void {
                 $user->unsetRelation('roles'); // drop roles cached under another team context
 
-                foreach ($user->roles as $role) {
+                // roles()->get(), not $user->roles: the relation must be read
+                // HERE, under this tenant's team — and an explicit query is
+                // exempt from preventLazyLoading, which would otherwise trip
+                // on any user instance that came out of the database rather
+                // than a factory.
+                foreach ($user->roles()->get() as $role) {
                     $user->removeRole($role);
                 }
                 $user->unsetRelation('roles');
             });
         });
+
+        // The membership row records THAT access ended; this line records who
+        // ended it and why — the half of the story a hearing asks for. Actor
+        // and reason are optional so system/console revocations still log.
+        activity()
+            ->causedBy($actor)
+            ->performedOn($user)
+            ->withProperties(array_filter([
+                'tenant_id' => $tenant->id,
+                'tenant' => $tenant->slug,
+                'reason' => $reason,
+            ]))
+            ->log('tenant_access.revoked');
     }
 }

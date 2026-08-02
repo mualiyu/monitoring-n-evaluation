@@ -71,8 +71,13 @@
             ['label' => __('Evaluations'), 'icon' => 'clipboard-check', 'href' => '#', 'disabled' => true],
             ['label' => __('Stakeholder feedback'), 'icon' => 'chat-bubble', 'href' => '#', 'disabled' => true],
         ]],
-        ['label' => __('Administration'), 'collapsed' => true, 'items' => [
-            ['label' => __('Users & roles'), 'icon' => 'users', 'href' => '#', 'disabled' => true],
+        ['label' => __('Administration'), 'collapsed' => ! request()->routeIs('tenant.team.*'), 'items' => [
+            [
+                'label' => __('Users & roles'),
+                'icon' => 'users',
+                'href' => url('/team'),
+                'active' => request()->routeIs('tenant.team.*'),
+            ],
             ['label' => __('Workspace settings'), 'icon' => 'cog', 'href' => '#', 'disabled' => true],
         ]],
     ];

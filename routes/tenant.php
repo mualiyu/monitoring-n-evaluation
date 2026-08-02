@@ -2,6 +2,7 @@
 
 use App\Actions\Iam\ListUserWorkspaces;
 use App\Http\Controllers\Iam\InvitationController;
+use App\Livewire\Tenant\Iam\TeamIndex;
 use App\Livewire\Tenant\Projects\ContractorIndex;
 use App\Livewire\Tenant\Projects\ProjectCreate;
 use App\Livewire\Tenant\Projects\ProjectDetail;
@@ -54,6 +55,14 @@ Route::middleware(['auth', 'active', 'tenant.member', '2fa.require'])->group(fun
     Route::get('/reports/create', ReportForm::class)->name('reports.create');
     Route::get('/reports/{report}', ReportReview::class)->name('reports.show');
     Route::get('/reports/{report}/edit', ReportForm::class)->name('reports.edit');
+
+    /*
+    | Team management (auth-surfaces.md §2–3). One screen: roster, pending
+    | invitations, invite form, revoke-access flow. Membership and invitation
+    | reads go through the sanctioned Iam actions; the component gates on
+    | users.view / users.invite / users.manage in the CURRENT tenant's team.
+    */
+    Route::get('/team', TeamIndex::class)->name('team.index');
 });
 
 Route::middleware(['guest', 'throttle:invitations'])->group(function () {

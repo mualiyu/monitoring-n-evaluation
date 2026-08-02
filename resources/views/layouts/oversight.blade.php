@@ -72,7 +72,12 @@
                 'href' => url('/contractors'),
                 'active' => request()->routeIs('oversight.contractors.*'),
             ],
-            ['label' => __('Users & roles'), 'icon' => 'users', 'href' => '#', 'disabled' => true],
+            [
+                'label' => __('Users & roles'),
+                'icon' => 'users',
+                'href' => url('/users'),
+                'active' => request()->routeIs('oversight.users.*'),
+            ],
             ['label' => __('Indicator library'), 'icon' => 'adjustments', 'href' => '#', 'disabled' => true],
             ['label' => __('Audit log'), 'icon' => 'shield-check', 'href' => '#', 'disabled' => true],
             ['label' => __('Instance settings'), 'icon' => 'cog', 'href' => '#', 'disabled' => true],

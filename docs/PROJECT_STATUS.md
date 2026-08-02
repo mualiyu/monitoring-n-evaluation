@@ -55,17 +55,24 @@ independent audit → findings closed → commit.
 | 6 | Phase 2: Inspections, Indicators/logframe UI, Evaluations, Consolidation | pending |
 | 7 | Phase 3: Public portal + publishing gate (`published_at` column exists, no writer yet) | pending |
 
-## In flight (uncommitted, 13 files)
+## In flight — task #5 IAM screens, committed as near-done WIP
 
-IAM screens slice (task #5), built by an agent that hit its session limit
-(resets 10:20am Africa/Lagos) **during final exit gates** — its last report:
-all 27 Iam tests passing, full-suite/pint/phpstan/build runs not yet confirmed.
-Present: `app/Livewire/Tenant/Iam/TeamIndex.php`,
-`app/Livewire/Oversight/Iam/UserDirectory.php`, `tests/Feature/Iam/{TeamScreenTest,
-UserDirectoryScreenTest}.php`, a `RevokeTenantAccess` extension (actor+reason
-audit logging), plus routes/sidebar/permission-seeder edits.
-**Next step:** run the four gates; if green, commit and mark #5 complete; if not,
-resume/respawn the builder with the failure list.
+State at session end: **808/808 tests green, Pint clean, npm build clean,
+seeds green — ONE phpstan error remains**: `UserDirectory.php:86-88` — the
+`@return LengthAwarePaginator<int, User>` generic annotation vs the concrete
+`Illuminate\Pagination\LengthAwarePaginator` import (larastan defines the
+generics on the contract; the concrete class needed `getCollection()` at :119).
+**First action next session:** resolve that one annotation (either annotate the
+concrete class per larastan's stubs, or type the contract and use
+`->items()`+`collect()` at :119), re-run phpstan to 0, then mark task #5
+complete. Everything else in the slice is delivered: tenant `/team` (members,
+invitations, revoke/resend, role-chain-limited invite form), oversight `/users`
+(directory with cross-team role chips, activate/deactivate with
+cannot-flip-self, oversight invitations with tenant picker), `SetUserActive` +
+`ListPendingInvitations` actions, `RevokeTenantAccess` actor+reason audit
+logging, sidebars wired, 27+ IAM tests.
+After #5: audit pass for the IAM slice (small), then #8/#9 (deferred screens +
+media plumbing), then Phase 2 (#6) and portal (#7).
 
 ## Working conventions (hard-won, keep them)
 

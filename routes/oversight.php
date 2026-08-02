@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Iam\InvitationController;
+use App\Livewire\Oversight\Iam\UserDirectory;
 use App\Livewire\Oversight\Projects\ContractorRegistry;
 use App\Livewire\Oversight\Projects\Portfolio;
 use App\Livewire\Oversight\Projects\ProjectView;
@@ -52,6 +53,16 @@ Route::middleware([
     | before any tenancy bypass.
     */
     Route::get('/compliance', ComplianceBoard::class)->name('compliance.index');
+
+    /*
+    | User directory (auth-surfaces.md §2–3): every account, its authority
+    | and workspaces, plus oversight provisioning (invitations per the
+    | Role::invitableBy chain) and the platform-wide is_active switch. Gated
+    | on users.view in the GLOBAL permission team inside the component —
+    | ExecutiveViewer and DataQualityReviewer pass the role middleware above
+    | but hold no users.* permissions, so they stop here.
+    */
+    Route::get('/users', UserDirectory::class)->name('users.index');
 });
 
 Route::middleware(['guest', 'throttle:invitations'])->group(function () {

@@ -245,11 +245,25 @@ it('finds the nine tenant-owned tables of the projects slice, all of them scoped
     }
 });
 
+it('finds the three tenant-owned tables of the reporting slice, all of them scoped', function () {
+    $models = modelsByTable();
+
+    foreach (['report_obligations', 'progress_reports', 'progress_report_events'] as $table) {
+        expect(tablesWithTenantColumn())->toContain($table)
+            ->and($models[$table]['scoped'] ?? false)->toBeTrue();
+    }
+});
+
 it('leaves global reference tables unscoped, as cross-MDA aggregation requires', function () {
     $tables = tablesWithTenantColumn();
     $models = modelsByTable();
 
-    foreach (['sectors', 'funding_sources', 'lgas', 'wards', 'contractors'] as $table) {
+    // `reporting_periods` belongs on this list by design, not by omission
+    // (progress-reporting.md §1.1): the statutory calendar is state-wide, and
+    // the compliance league table is only meaningful if every MDA is measured
+    // against an identical denominator. A per-tenant calendar would make
+    // "which MDA was late" unanswerable.
+    foreach (['sectors', 'funding_sources', 'lgas', 'wards', 'contractors', 'reporting_periods'] as $table) {
         expect($tables)->not->toContain($table)
             ->and($models[$table]['scoped'] ?? false)->toBeFalse();
     }

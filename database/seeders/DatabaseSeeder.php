@@ -21,6 +21,11 @@ class DatabaseSeeder extends Seeder
             DemoTenantSeeder::class,
             ContractorSeeder::class,
             DemoProjectSeeder::class,
+            // The statutory calendar is global reference data and ships in
+            // production too; the demo reporting history that hangs off it
+            // does not.
+            ReportingPeriodSeeder::class,
+            DemoProgressReportSeeder::class,
         ]);
     }
 }

@@ -114,8 +114,29 @@ class PermissionSeeder extends Seeder
             'documents.upload' => [RoleEnum::SuperAdmin, ...$mdaStaff, ...$field],
             'documents.delete' => [RoleEnum::SuperAdmin, RoleEnum::MdaAdmin],
 
+            // Progress reporting (progress-reporting.md §4). The approval
+            // chain is a permission structure before it is a guard: a
+            // consultant holds `reports.create|submit` and NEVER `.review` or
+            // `.approve`, which is why "a consultant cannot approve their own
+            // report" needs no runtime check to be true. The identity guards
+            // in TransitionProgressReportStatus exist for the on-behalf path,
+            // where an M&E officer submits and could otherwise clear it.
+            //
+            // FieldMonitor gets `reports.view` only: an inspector reads the
+            // return they are verifying but does not file it.
+            'reports.view' => [...$oversight, ...$mdaStaff, ...$field],
+            'reports.create' => [RoleEnum::SuperAdmin, ...$mdaStaff, RoleEnum::Consultant],
+            'reports.submit' => [RoleEnum::SuperAdmin, ...$mdaStaff, RoleEnum::Consultant],
+            'reports.review' => [RoleEnum::SuperAdmin, ...$mdaStaff],
+            // Approval moves the project's attested figures through
+            // RecordProjectProgress, so it sits with the same authority that
+            // already holds `projects.progress.update` at director level.
+            'reports.approve' => [RoleEnum::SuperAdmin, RoleEnum::MdaAdmin],
+            'reports.waive' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, RoleEnum::MdaAdmin],
+
             // Oversight
             'oversight.portfolio.view' => $oversight,
+            'oversight.compliance.view' => $oversight,
         ];
     }
 }

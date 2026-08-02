@@ -94,4 +94,52 @@ return [
         'require_final_inspection_for_certification' => false,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Reporting calendar + deadline engine (progress-reporting.md §0.1)
+    |--------------------------------------------------------------------------
+    | The statutory reporting calendar is a POLICY decision, not a constant: a
+    | state may give MDAs 14 days after month end where its neighbour gives 7,
+    | and one MDA may need a different reminder ladder. Every number here is
+    | read through App\Support\SettingsRepository (tenant override → instance
+    | setting → this default), so a secretariat can retune the deadline engine
+    | from a settings screen without a release.
+    |
+    | Due-date rules come from the manual digest §4: monthly and quarterly
+    | returns are due N days after the period ends; the six-monthly return is
+    | due at the END OF THE MONTH FOLLOWING the half (H1 → 31 Jul, H2 → 31 Jan);
+    | the annual return is due within the first quarter of the following year.
+    */
+
+    'reporting' => [
+        // Cadence a project reports on when it names none of its own.
+        'default_frequency' => 'monthly',
+        // Days after period_end that a monthly / quarterly return is due.
+        'monthly_due_days' => 7,
+        'quarterly_due_days' => 14,
+        // Statutory rules — named, not numeric, because they are calendar
+        // rules rather than day offsets. `end_of_period` (due on the last day
+        // of the window itself) is the only alternative implemented; anything
+        // unrecognised falls back to the statutory rule.
+        'biannual_due_rule' => 'end_of_following_month',
+        'annual_due_rule' => 'end_of_q1',
+        // Reminder ladder, in days before due. Each rung fires exactly once
+        // per obligation (the monotonic reminder_stage counter, §3).
+        'reminder_days_before' => [7, 3, 1],
+        // Days past due at which an unmet obligation escalates: first to the
+        // MDA admin, then to state oversight.
+        'overdue_escalation_days' => [1, 7],
+        // Accept a late return with a flag rather than hard-closing the
+        // window — a blocked MDA simply never reports, which is worse data.
+        // When false, periods are generated with closes_at = due_at and
+        // submission after it is refused.
+        'allow_late_submission' => true,
+        // Whether the approver must be someone other than the reviewer. Off
+        // only for a single-officer MDA where nobody else can sign.
+        'require_separate_approver' => true,
+        // Which project statuses owe progress reports. `completed` is included
+        // until certification: retention-period work still reports.
+        'obligation_statuses' => ['mobilized', 'in_progress', 'completed'],
+    ],
+
 ];

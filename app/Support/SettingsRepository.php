@@ -63,4 +63,69 @@ class SettingsRepository
 
         return is_bool($value) ? $value : filter_var($value, FILTER_VALIDATE_BOOL);
     }
+
+    public function string(string $group, string $key, string $default): string
+    {
+        $value = $this->get($group, $key, $default);
+
+        return is_string($value) ? $value : $default;
+    }
+
+    /**
+     * A list of whole numbers — the reminder ladder and the escalation ladder
+     * (progress-reporting.md §0.1) are both configured this way. Settings rows
+     * cast their value as JSON, so a stored `[7, 3, 1]` arrives as an array of
+     * ints; a malformed override falls back to the default rather than
+     * silencing the deadline engine.
+     *
+     * @param  list<int>  $default
+     * @return list<int>
+     */
+    public function ints(string $group, string $key, array $default): array
+    {
+        $value = $this->get($group, $key, $default);
+
+        if (! is_array($value)) {
+            return $default;
+        }
+
+        $ints = [];
+
+        foreach ($value as $item) {
+            if (! is_numeric($item)) {
+                return $default;
+            }
+
+            $ints[] = (int) $item;
+        }
+
+        return $ints === [] ? [] : $ints;
+    }
+
+    /**
+     * A list of strings — e.g. which project statuses owe reports.
+     *
+     * @param  list<string>  $default
+     * @return list<string>
+     */
+    public function strings(string $group, string $key, array $default): array
+    {
+        $value = $this->get($group, $key, $default);
+
+        if (! is_array($value)) {
+            return $default;
+        }
+
+        $strings = [];
+
+        foreach ($value as $item) {
+            if (! is_string($item)) {
+                return $default;
+            }
+
+            $strings[] = $item;
+        }
+
+        return $strings;
+    }
 }

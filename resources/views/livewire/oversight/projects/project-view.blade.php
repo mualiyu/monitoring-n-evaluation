@@ -185,13 +185,22 @@
         :description="__('This is a state-level intervention on another entity’s project. It is recorded against your name and visible in their workspace.')"
         max-width="md"
     >
+        @if ($this->pendingIsEarlyClosure)
+            {{-- The one place the §2.1 early-closure override is offered. Say
+                 plainly that this is what is happening — a state administrator
+                 ending post-completion monitoring before its window closes. --}}
+            <x-ui.alert variant="warning" class="mb-4" :title="__('Closing before the post-completion review window ends')">
+                {{ __('This project’s post-completion monitoring has not run its course. As a state-level administrator you may close it early; your reason is recorded on the project’s timeline.') }}
+            </x-ui.alert>
+        @endif
+
         <x-ui.form.group
             name="transitionReason"
             :label="__('Reason')"
-            :hint="$pending === \App\Enums\ProjectStatus::Closed
-                ? __('Optional for closure.')
-                : __('Required. Shown to the entity delivering this project.')"
-            :required="$pending !== \App\Enums\ProjectStatus::Closed"
+            :hint="$this->pendingNeedsReason
+                ? __('Required. Shown to the entity delivering this project.')
+                : __('Optional for closure.')"
+            :required="$this->pendingNeedsReason"
         >
             <x-ui.form.textarea
                 name="transitionReason"

@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * What an indicator is expected to reach in one period — tenant-owned.
@@ -34,7 +36,21 @@ class IndicatorTarget extends Model
     use BelongsToTenant;
 
     /** @use HasFactory<IndicatorTargetFactory> */
-    use HasFactory;
+    use HasFactory, LogsActivity;
+
+    /**
+     * Everything auditable (rules/architecture.md). A target quietly lowered to
+     * meet the actual is the classic M&E fabrication; the before/after pair on
+     * `target_value` is what makes it visible after the fact.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('indicator_targets')
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges();
+    }
 
     protected function casts(): array
     {

@@ -273,14 +273,6 @@ class Project extends Model
      * ProjectPolicy::view and every list screen so a policy and a query can
      * never disagree.
      *
-     * TODO(Actions slice): restrict to assigned projects for users whose only
-     * tenant roles are Consultant/FieldMonitor —
-     *   $query->whereHas('assignments', fn ($q) => $q->where('user_id', $user->id)
-     *       ->whereNull('unassigned_at'))
-     * — everyone else (MdaAdmin, MeOfficer, oversight) keeps the full tenant
-     * portfolio. Until the Actions/Policies slice lands this is a no-op: the
-     * TenantScope still confines the query to the current MDA.
-     *
      * @param  Builder<static>  $query
      * @return Builder<static>
      */

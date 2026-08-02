@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * An actual measurement of an indicator for one period — tenant-owned.
@@ -53,7 +55,23 @@ class IndicatorReading extends Model
     use BelongsToTenant;
 
     /** @use HasFactory<IndicatorReadingFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
+
+    /**
+     * Everything auditable (rules/architecture.md). `published_at` is not
+     * fillable — publication is an explicit act, never a form payload — so it
+     * is named back explicitly here: "who put this figure on a public surface,
+     * and when" is precisely the question a disputed number provokes.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('indicator_readings')
+            ->logFillable()
+            ->logOnly(['published_at'])
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges();
+    }
 
     protected static function booted(): void
     {

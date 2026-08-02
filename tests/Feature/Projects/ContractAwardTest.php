@@ -138,6 +138,37 @@ it('refuses to rewrite an awarded term through a mass update, where model events
     expect(Contract::query()->firstOrFail()->sum->toDecimalString())->toBe('450000000.00');
 });
 
+it('ignores a status handed to it in the award payload', function () {
+    $project = Project::factory()->draft()->create();
+
+    // `status` stays fillable — a contract legitimately moves awarded → active
+    // → completed later on. What must not happen is a contract being BOOKED
+    // straight into a terminal state, which would mean an execution history
+    // that never existed and a close-out nobody performed.
+    $contract = ($this->award)($project, $this->contractor, $this->admin, contractAttributes([
+        'status' => ContractStatus::Completed,
+    ]));
+
+    expect($contract->status)->toBe(ContractStatus::Awarded)
+        ->and($contract->fresh()->status)->toBe(ContractStatus::Awarded);
+});
+
+it('ignores a status handed to it in a variation payload', function () {
+    $project = Project::factory()->draft()->create();
+    $original = ($this->award)($project, $this->contractor, $this->admin, contractAttributes());
+
+    $variation = (new RecordContractVariation)($original, $this->admin, [
+        'contract_number' => 'CTR-2026-001-VO1',
+        'sum' => '25000000.00',
+        'scope_of_works' => 'Additional culverts at chainage 3+400.',
+        'award_date' => now()->toDateString(),
+        'status' => ContractStatus::Terminated,
+    ], 'Additional drainage discovered during excavation.');
+
+    expect($variation->status)->toBe(ContractStatus::Awarded)
+        ->and($variation->fresh()->status)->toBe(ContractStatus::Awarded);
+});
+
 it('still allows the fields a contract is meant to move through', function () {
     $project = Project::factory()->draft()->create();
     $contract = ($this->award)($project, $this->contractor, $this->admin, contractAttributes());

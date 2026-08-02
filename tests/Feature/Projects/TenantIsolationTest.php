@@ -11,8 +11,10 @@
  * another MDA must resolve to nothing, which is what makes route-model binding
  * 404 rather than serve another ministry's record.
  *
- * HTTP-level isolation (index, detail, export) lands with the Livewire slice —
- * this slice ships no routes.
+ * Isolation at the SURFACE — index, detail, export — is proven where those
+ * surfaces live: ProjectScreensTest (list + detail + route-model binding) and
+ * ProjectExportTest (the CSV, which leaves the Livewire response entirely and
+ * is therefore the one read that could go wide without a screen showing it).
  */
 
 use App\Models\Contract;

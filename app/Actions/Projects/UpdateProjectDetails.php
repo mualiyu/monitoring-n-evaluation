@@ -2,6 +2,7 @@
 
 namespace App\Actions\Projects;
 
+use App\Actions\Projects\Concerns\ChecksProjectManager;
 use App\Exceptions\Projects\ProjectRuleViolation;
 use App\Models\Project;
 use App\Models\User;
@@ -21,12 +22,20 @@ use Illuminate\Support\Facades\Gate;
  */
 class UpdateProjectDetails
 {
+    use ChecksProjectManager;
+
     /**
      * @param  array<string, mixed>  $attributes  validated project fields
      */
     public function __invoke(Project $project, User $actor, array $attributes): Project
     {
         Gate::forUser($actor)->authorize('update', $project);
+
+        // Manager stays editable after certification (§2.3 freezes scope, money
+        // and dates — not the officer accountable), so this guard has to run on
+        // the edit path too. Asked against the PROJECT's tenant rather than
+        // whatever happens to be bound, so it answers the same on any surface.
+        $this->assertManagerIsAMember($attributes, $project->tenant);
 
         $project->fill($attributes);
 

@@ -10,6 +10,7 @@
  * be theatre.
  */
 
+use App\Actions\Projects\ArchiveProject;
 use App\Enums\ProjectStatus;
 use App\Enums\Role;
 use App\Livewire\Tenant\Projects\ProjectCreate;
@@ -186,6 +187,91 @@ it('will not register a project with a reference already used in this workspace'
         ->set('sector_id', (string) $this->sector->id)
         ->call('next')
         ->assertHasErrors('reference');
+});
+
+it('will not silently reuse the reference of an ARCHIVED project', function () {
+    $archived = Project::factory()->for($this->works)->draft()->create(['reference' => 'PRJ-ARCHIVED']);
+    (new ArchiveProject)($archived, $this->admin);
+
+    // Soft-deleted: gone from the register, still present in the table.
+    expect(Project::query()->where('reference', 'PRJ-ARCHIVED')->exists())->toBeFalse()
+        ->and(Project::query()->withTrashed()->where('reference', 'PRJ-ARCHIVED')->exists())->toBeTrue();
+
+    Livewire::actingAs($this->admin)
+        ->test(ProjectCreate::class)
+        ->set('title', 'A brand new project entirely')
+        ->set('reference', 'PRJ-ARCHIVED')
+        ->set('sector_id', (string) $this->sector->id)
+        ->call('next')
+        // …but the unique index is on the TABLE, so the row still owns the
+        // reference. Without withTrashed() this passes validation and dies on a
+        // raw integrity error at insert.
+        ->assertHasErrors('reference')
+        ->assertSet('step', 1)
+        // The message has to name the actual obstacle: "another project already
+        // uses this" sends the officer hunting through a register the row is
+        // no longer in.
+        ->tap(fn ($component) => expect($component->errors()->first('reference'))
+            ->toContain('archived project'));
+});
+
+it('still says "already uses this reference" for a live clash, not the archived wording', function () {
+    Project::factory()->for($this->works)->create(['reference' => 'PRJ-LIVE']);
+
+    Livewire::actingAs($this->admin)
+        ->test(ProjectCreate::class)
+        ->set('title', 'Another project entirely')
+        ->set('reference', 'PRJ-LIVE')
+        ->set('sector_id', (string) $this->sector->id)
+        ->call('next')
+        ->tap(fn ($component) => expect($component->errors()->first('reference'))
+            ->toContain('already uses this reference'));
+});
+
+it('refuses a project manager who is not a member of this workspace', function () {
+    $outsider = User::factory()->create();
+
+    Livewire::actingAs($this->admin)
+        ->test(ProjectCreate::class)
+        ->set('title', 'Rehabilitation of the township ring road')
+        ->set('reference', 'PRJ-MGR-1')
+        ->set('sector_id', (string) $this->sector->id)
+        // A real user id, so `exists:users,id` would have waved it straight
+        // through — manager_id is an FK to the GLOBAL users table.
+        ->set('manager_id', (string) $outsider->id)
+        ->call('next')
+        ->assertHasErrors('manager_id')
+        ->assertSet('step', 1);
+});
+
+it('refuses a project manager who belongs to another MDA', function () {
+    $health = Tenant::factory()->create(['name' => 'Ministry of Health', 'slug' => 'health']);
+    $theirs = memberOf(User::factory()->create(), $health, Role::MdaAdmin);
+
+    actingOnTenant($this->works);
+
+    Livewire::actingAs($this->admin)
+        ->test(ProjectCreate::class)
+        ->set('title', 'Rehabilitation of the township ring road')
+        ->set('reference', 'PRJ-MGR-2')
+        ->set('sector_id', (string) $this->sector->id)
+        ->set('manager_id', (string) $theirs->id)
+        ->call('next')
+        ->assertHasErrors('manager_id');
+});
+
+it('accepts a project manager drawn from this workspace’s own members', function () {
+    $manager = memberOf(User::factory()->create(), $this->works, Role::MeOfficer);
+
+    Livewire::actingAs($this->admin)
+        ->test(ProjectCreate::class)
+        ->set('title', 'Rehabilitation of the township ring road')
+        ->set('reference', 'PRJ-MGR-3')
+        ->set('sector_id', (string) $this->sector->id)
+        ->set('manager_id', (string) $manager->id)
+        ->call('next')
+        ->assertHasNoErrors()
+        ->assertSet('step', 2);
 });
 
 it('denies the wizard to a role without projects.create', function () {

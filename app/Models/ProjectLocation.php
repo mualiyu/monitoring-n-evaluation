@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * A site a project is executed at — tenant-owned. Projects are frequently
@@ -46,7 +48,22 @@ class ProjectLocation extends Model
     use BelongsToTenant;
 
     /** @use HasFactory<ProjectLocationFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
+
+    /**
+     * Everything auditable (rules/architecture.md). Coordinates especially:
+     * a site that quietly moves 40 km is how an inspection ends up "verifying"
+     * a different facility, and the before/after pair is the only way to
+     * notice it happened.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('project_locations')
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges();
+    }
 
     protected function casts(): array
     {

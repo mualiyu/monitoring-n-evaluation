@@ -2,6 +2,7 @@
 
 namespace App\Actions\Projects;
 
+use App\Enums\ContractStatus;
 use App\Exceptions\Projects\ProjectRuleViolation;
 use App\Models\Contract;
 use App\Models\Project;
@@ -48,6 +49,11 @@ class RecordContractVariation
         return DB::transaction(function () use ($original, $actor, $attributes, $reason): Contract {
             $variation = Contract::create([
                 ...$attributes,
+                // Same reasoning as AwardContract, and stated after the spread
+                // for the same reason: `status` is the row's own lifecycle
+                // field, never caller input. A variation is born `awarded`,
+                // like the award it amends.
+                'status' => ContractStatus::Awarded,
                 'project_id' => $original->project_id,
                 // A variation is executed by the firm holding the original —
                 // a different firm is a new award, not an amendment.

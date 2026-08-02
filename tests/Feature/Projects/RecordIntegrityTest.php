@@ -11,14 +11,19 @@
 
 use App\Actions\Projects\BlacklistContractor;
 use App\Actions\Projects\SetProjectFundingSources;
+use App\Actions\Projects\UnassignProjectMember;
 use App\Enums\ProjectStatus;
 use App\Enums\Role;
 use App\Models\Contract;
 use App\Models\Contractor;
 use App\Models\FundingSource;
 use App\Models\Indicator;
+use App\Models\IndicatorReading;
+use App\Models\IndicatorTarget;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\ProjectFundingSource;
+use App\Models\ProjectLocation;
 use App\Models\ProjectStatusEvent;
 use App\Models\Tenant;
 use App\Models\User;
@@ -140,6 +145,130 @@ it('logs a blacklisting on the vendor registry, with the reason', function () {
 
     expect($activity->attribute_changes['attributes']['is_blacklisted'])->toBeTrue()
         ->and($activity->attribute_changes['attributes']['blacklist_reason'])->toBe('Abandoned two sites.');
+});
+
+/*
+|--------------------------------------------------------------------------
+| "Everything auditable" means every tenant-owned model, not the headline ones
+|--------------------------------------------------------------------------
+| The four models below were the module's audit blind spots: who was put on a
+| project, where a site sits, what an indicator was asked to reach and what it
+| actually read. Each is a record an auditor asks "who changed this, and from
+| what" about, and none of them logged anything.
+*/
+
+it('logs a create on every tenant-owned model of the slice', function (string $model, string $logName, Closure $create) {
+    $subject = $create();
+
+    $activity = Activity::query()
+        ->where('subject_type', (new $model)->getMorphClass())
+        ->where('subject_id', $subject->getKey())
+        ->where('event', 'created')
+        ->latest('id')
+        ->first();
+
+    expect($activity)->not->toBeNull()
+        ->and($activity->log_name)->toBe($logName);
+})->with([
+    'assignments' => [
+        ProjectAssignment::class, 'project_assignments',
+        fn () => ProjectAssignment::factory()->create(),
+    ],
+    'sites' => [
+        ProjectLocation::class, 'project_locations',
+        fn () => ProjectLocation::factory()->primary()->create(),
+    ],
+    'indicator targets' => [
+        IndicatorTarget::class, 'indicator_targets',
+        fn () => IndicatorTarget::factory()->create(),
+    ],
+    'indicator readings' => [
+        IndicatorReading::class, 'indicator_readings',
+        fn () => IndicatorReading::factory()->create(),
+    ],
+]);
+
+it('records the before and after when a site quietly moves', function () {
+    $location = ProjectLocation::factory()->primary()->create([
+        'latitude' => '9.0570000',
+        'longitude' => '7.4950000',
+    ]);
+
+    $location->update(['latitude' => '9.9990000']);
+
+    $activity = Activity::query()
+        ->where('subject_type', $location->getMorphClass())
+        ->where('subject_id', $location->id)
+        ->where('event', 'updated')
+        ->latest('id')
+        ->firstOrFail();
+
+    // A site that shifts 100km is how an inspection ends up "verifying" a
+    // different facility. The pair is the only way to notice after the fact.
+    expect((float) $activity->attribute_changes['attributes']['latitude'])->toBe(9.999)
+        ->and((float) $activity->attribute_changes['old']['latitude'])->toBe(9.057);
+});
+
+it('records a lowered indicator target, the classic M&E fabrication', function () {
+    $target = IndicatorTarget::factory()->create(['target_value' => '1000.0000']);
+
+    $target->update(['target_value' => '100.0000']);
+
+    $activity = Activity::query()
+        ->where('subject_type', $target->getMorphClass())
+        ->where('subject_id', $target->id)
+        ->where('event', 'updated')
+        ->latest('id')
+        ->firstOrFail();
+
+    expect((float) $activity->attribute_changes['old']['target_value'])->toBe(1000.0)
+        ->and((float) $activity->attribute_changes['attributes']['target_value'])->toBe(100.0);
+});
+
+it('names who took a member off a project, which no column on the row records', function () {
+    $project = Project::factory()->ongoing()->create();
+    $member = memberOf(User::factory()->create(), $this->works, Role::Consultant);
+
+    $assignment = ProjectAssignment::factory()->consultant()->forProject($project)->create([
+        'user_id' => $member->id,
+        'assigned_by_id' => $this->admin->id,
+    ]);
+
+    // A different officer from the one who assigned them — otherwise the test
+    // would pass on assigned_by_id alone and prove nothing.
+    $remover = memberOf(User::factory()->create(), $this->works, Role::MeOfficer);
+
+    (new UnassignProjectMember)($assignment, $remover);
+
+    $activity = Activity::query()
+        ->where('subject_type', $assignment->getMorphClass())
+        ->where('subject_id', $assignment->id)
+        ->where('description', 'unassigned')
+        ->latest('id')
+        ->firstOrFail();
+
+    expect($activity->causer_id)->toBe($remover->id)
+        ->and($activity->log_name)->toBe('project_assignments')
+        ->and($assignment->fresh()->assigned_by_id)->toBe($this->admin->id);
+});
+
+it('states the actor even with nobody authenticated, as a queue worker has', function () {
+    $assignment = ProjectAssignment::factory()->create();
+    $remover = memberOf(User::factory()->create(), $this->works, Role::MdaAdmin);
+
+    // auth() is empty here — exactly a queued job or a console command. The
+    // model's own log would infer no causer at all; the Action states it.
+    expect(auth()->user())->toBeNull();
+
+    (new UnassignProjectMember)($assignment, $remover);
+
+    $activity = Activity::query()
+        ->where('subject_type', $assignment->getMorphClass())
+        ->where('subject_id', $assignment->id)
+        ->where('description', 'unassigned')
+        ->firstOrFail();
+
+    expect($activity->causer_id)->toBe($remover->id);
 });
 
 it('leaves a trace when a funding split is removed, which is why it needs no soft delete', function () {

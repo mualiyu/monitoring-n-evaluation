@@ -109,6 +109,59 @@ it('refuses registration to a consultant', function () {
         ->toThrow(AuthorizationException::class);
 });
 
+/*
+|--------------------------------------------------------------------------
+| manager_id — an FK to the GLOBAL users table, so the scope cannot police it
+|--------------------------------------------------------------------------
+| The wizard only ever offers workspace members, but manager_id is a plain
+| integer on the wire. These are the cases that matter for a caller that never
+| touches the form: an import, a console command, a crafted Livewire payload.
+*/
+
+it('refuses to register a project under a manager who is not a member of this workspace', function () {
+    $outsider = User::factory()->create(); // exists on the platform, belongs to no MDA
+
+    expect(fn () => (new RegisterProject)(
+        $this->admin,
+        registrationAttributes($this->sector, ['manager_id' => $outsider->id]),
+    ))->toThrow(ProjectRuleViolation::class, 'active membership of this workspace');
+
+    expect(Project::query()->count())->toBe(0);
+});
+
+it('refuses a manager who belongs to a different MDA', function () {
+    $health = Tenant::factory()->create(['name' => 'Ministry of Health', 'slug' => 'health']);
+    $theirs = memberOf(User::factory()->create(), $health, Role::MdaAdmin);
+
+    actingOnTenant($this->works);
+
+    expect(fn () => (new RegisterProject)(
+        $this->admin,
+        registrationAttributes($this->sector, ['manager_id' => $theirs->id]),
+    ))->toThrow(ProjectRuleViolation::class);
+});
+
+it('refuses to hand an existing project to an outsider on edit', function () {
+    $project = Project::factory()->ongoing()->create();
+    $outsider = User::factory()->create();
+
+    expect(fn () => (new UpdateProjectDetails)($project, $this->admin, ['manager_id' => $outsider->id]))
+        ->toThrow(ProjectRuleViolation::class, 'active membership of this workspace');
+
+    expect($project->fresh()->manager_id)->toBeNull();
+});
+
+it('still allows a project to have no named manager at all', function () {
+    $project = (new RegisterProject)(
+        $this->admin,
+        registrationAttributes($this->sector, ['manager_id' => null]),
+    );
+
+    (new UpdateProjectDetails)($project, $this->admin, ['manager_id' => null]);
+
+    expect($project->fresh()->manager_id)->toBeNull();
+});
+
 it('refuses a funding split that adds up to more than the whole project', function () {
     $project = Project::factory()->draft()->create();
 

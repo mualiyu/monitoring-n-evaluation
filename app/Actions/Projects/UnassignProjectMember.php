@@ -21,9 +21,26 @@ class UnassignProjectMember
     {
         Gate::forUser($actor)->authorize('delete', $assignment);
 
-        if ($assignment->isActive()) {
-            $assignment->update(['unassigned_at' => now()]);
+        if (! $assignment->isActive()) {
+            return $assignment;
         }
+
+        $assignment->update(['unassigned_at' => now()]);
+
+        // The row records who put the member ON the project (`assigned_by_id`)
+        // but has no column for who took them OFF, and the model's own log
+        // infers its causer from the authenticated user — which is nobody in a
+        // queue worker or a console run. $actor is the authority this Action
+        // was handed, so it is stated explicitly rather than inferred.
+        activity('project_assignments')
+            ->performedOn($assignment)
+            ->causedBy($actor)
+            ->withProperties([
+                'project_id' => $assignment->project_id,
+                'user_id' => $assignment->user_id,
+                'role' => $assignment->role->value,
+            ])
+            ->log('unassigned');
 
         return $assignment;
     }

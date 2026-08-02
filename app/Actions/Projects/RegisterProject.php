@@ -2,6 +2,7 @@
 
 namespace App\Actions\Projects;
 
+use App\Actions\Projects\Concerns\ChecksProjectManager;
 use App\Enums\ProjectStatus;
 use App\Models\Project;
 use App\Models\ProjectLocation;
@@ -22,6 +23,8 @@ use Illuminate\Support\Facades\Gate;
  */
 class RegisterProject
 {
+    use ChecksProjectManager;
+
     /**
      * @param  array<string, mixed>  $attributes  validated project fields
      * @param  array<string, mixed>  $primaryLocation  the single site every project starts with
@@ -34,6 +37,10 @@ class RegisterProject
         array $fundingSources = [],
     ): Project {
         Gate::forUser($actor)->authorize('create', Project::class);
+
+        // Before the transaction: a named manager who does not belong here is a
+        // bad request, not a half-written project.
+        $this->assertManagerIsAMember($attributes);
 
         return DB::transaction(function () use ($actor, $attributes, $primaryLocation, $fundingSources): Project {
             $project = Project::create([

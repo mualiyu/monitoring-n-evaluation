@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * Who is accountable for a project, in what capacity — tenant-owned. This is
@@ -35,7 +37,23 @@ class ProjectAssignment extends Model
     use BelongsToTenant;
 
     /** @use HasFactory<ProjectAssignmentFactory> */
-    use HasFactory;
+    use HasFactory, LogsActivity;
+
+    /**
+     * Everything auditable (rules/architecture.md). "Who was accountable for
+     * this site in March, and who took them off" is the question an audit
+     * actually asks — `assigned_by_id` answers the first half and the log's
+     * causer answers the second (UnassignProjectMember writes it explicitly,
+     * because a queue worker or a console caller has no authenticated user).
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('project_assignments')
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontLogEmptyChanges();
+    }
 
     protected function casts(): array
     {

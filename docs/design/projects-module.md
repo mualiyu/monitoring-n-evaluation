@@ -331,6 +331,20 @@ status.update|certify|close|suspend|cancel|assign|progress.update|publish`,
 `app/Actions/Oversight/`: `ListProjectsAcrossTenants`, `BuildPortfolioSummary`
 (`oversight.portfolio.view`) — the only `withoutTenancy()` calls in this module.
 
+**Scope bypasses, in full.** As built, `withoutTenancy()` is confined to those two Actions, but
+`CurrentTenant::bypass()` is *not* only theirs: `App\Livewire\Oversight\Projects\ProjectView` and
+`…\ContractorRegistry` call it too, and legitimately. The oversight surface binds no tenant at all,
+so the fail-closed `TenantScope` throws on any tenant-owned read there — `ProjectView` bypasses to
+resolve the record and to load its status events, contracts and sites (and to run the
+suspend/close/cancel transition, which writes a tenant-owned ledger row); `ContractorRegistry`
+bypasses for the per-firm contract counts, which are tenant-owned even though the registry is not.
+This is `rules/tenancy.md`'s "cross-tenant reads are an explicit privilege", not an exception to it:
+`app/Livewire/Oversight/` is on the discipline allowlist in `tests/Unit/TenancyDisciplineTest.php`,
+which is what actually enforces the boundary. A bypass appearing in any other namespace fails CI.
+Also read `manager_id`: it is an FK to the **global** `users` table, so it is *not* protected by the
+scope — `RegisterProject` and `UpdateProjectDetails` both run the `tenant_user` membership check
+(the same gate `AssignProjectMember` uses) so a project cannot name an outsider as its manager.
+
 Policies: `ProjectPolicy`, `ContractPolicy`, `ContractorPolicy`, `ProjectAssignmentPolicy`,
 `IndicatorPolicy`, `MediaPolicy` — all on the "permission AND `tenant_id` match" helper.
 `ProjectPolicy::view` adds the assignment rule (a user holding **only** Consultant or FieldMonitor

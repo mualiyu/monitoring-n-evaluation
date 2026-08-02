@@ -2,6 +2,7 @@
 
 namespace App\Actions\Projects;
 
+use App\Enums\ContractStatus;
 use App\Enums\ProjectStatus;
 use App\Exceptions\Projects\ProjectRuleViolation;
 use App\Models\Contract;
@@ -55,6 +56,15 @@ class AwardContract
         return DB::transaction(function () use ($project, $contractor, $actor, $attributes): Contract {
             $contract = Contract::create([
                 ...$attributes,
+                // AFTER the spread, so a payload naming `status` cannot decide
+                // it. The field stays fillable because a contract legitimately
+                // moves awarded → active → completed later on; what it must
+                // never do is *begin* anywhere else — a contract booked
+                // straight into "completed" claims an execution history that
+                // never happened and a close-out nobody performed. Stated here
+                // rather than left to the column default so the returned model
+                // carries the value too.
+                'status' => ContractStatus::Awarded,
                 'project_id' => $project->id,
                 'contractor_id' => $contractor->id,
                 'created_by_id' => $actor->id,

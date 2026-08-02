@@ -200,10 +200,24 @@ class ProjectCreate extends Component
                     // already carries the TenantScope, so this cannot drift from
                     // however tenancy is scoped, and cannot leak another MDA's
                     // references by reporting a clash across workspaces.
+                    //
+                    // withTrashed() because the unique index is (tenant_id,
+                    // reference) on the TABLE and archiving only soft-deletes:
+                    // an archived project still owns its reference, so without
+                    // this the form would pass validation and the insert would
+                    // die on a raw integrity error. Archived clashes get their
+                    // own message — "already used" sends the officer hunting
+                    // through a register the row is no longer in.
                     function (string $attribute, mixed $value, Closure $fail): void {
-                        if (Project::query()->where('reference', $value)->exists()) {
-                            $fail(__('Another project in this workspace already uses this reference.'));
+                        $existing = Project::query()->withTrashed()->where('reference', $value)->first();
+
+                        if ($existing === null) {
+                            return;
                         }
+
+                        $fail($existing->trashed()
+                            ? __('This reference belongs to an archived project in this workspace. Choose another, or restore that project.')
+                            : __('Another project in this workspace already uses this reference.'));
                     },
                 ],
                 'sector_id' => ['required', Rule::exists('sectors', 'id')->where('is_active', true)],
@@ -211,7 +225,23 @@ class ProjectCreate extends Component
                 'description' => ['nullable', 'string', 'max:5000'],
                 'goal' => ['nullable', 'string', 'max:2000'],
                 'objectives' => ['nullable', 'string', 'max:5000'],
-                'manager_id' => ['nullable', Rule::exists('users', 'id')],
+                // Not `exists:users,id` — that accepts EVERY account on the
+                // platform, including staff of another ministry. The option
+                // list is the constraint: validate against exactly what
+                // managers() renders, so what the form offers and what it
+                // accepts cannot drift. RegisterProject re-checks membership
+                // independently for callers that never touch this form.
+                'manager_id' => [
+                    'nullable',
+                    function (string $attribute, mixed $value, Closure $fail): void {
+                        $isMember = $this->managers()
+                            ->contains(fn (User $member): bool => (string) $member->id === (string) $value);
+
+                        if (! $isMember) {
+                            $fail(__('Choose a project manager from this workspace’s active members.'));
+                        }
+                    },
+                ],
                 'supervising_agency_name' => ['nullable', 'string', 'max:255'],
             ],
             2 => [

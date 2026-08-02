@@ -129,6 +129,14 @@ class ProjectRuleViolation extends DomainException
         );
     }
 
+    public static function managerNotAMember(): self
+    {
+        return new self(
+            'A project manager must be a user with an active membership of this workspace — '
+            .'naming an outsider would hand them a project in an MDA they were never admitted to.'
+        );
+    }
+
     public static function assigneeNotAMember(): self
     {
         return new self('Only a user with an active membership of this workspace can be assigned to its projects.');

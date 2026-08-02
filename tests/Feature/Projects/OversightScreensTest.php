@@ -146,6 +146,154 @@ it('demands a reason before the state may suspend a project', function () {
     expect($fresh->status)->toBe(ProjectStatus::InProgress);
 });
 
+/* -------------------------------------------------------------------------- */
+/* Closure — including the §2.1 early-closure override, which had no surface */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A certified project's post-completion review window is still running (the
+ * factory dates it five months out), so every close below is an EARLY close —
+ * the case the override exists for.
+ */
+function certifiedProjectIn(Tenant $tenant, array $attributes = []): Project
+{
+    return app(CurrentTenant::class)->runAs(
+        $tenant,
+        fn (): Project => Project::factory()->certified()->create($attributes),
+    );
+}
+
+it('lets a state administrator close a certified project before its review window ends', function () {
+    $project = certifiedProjectIn($this->works, ['title' => 'Cold Chain Facility Upgrade']);
+
+    Livewire::actingAs($this->stateAdmin)
+        ->test(ProjectView::class, ['ulid' => $project->ulid])
+        ->call('startTransition', ProjectStatus::Closed->value)
+        ->set('transitionReason', 'Facility handed over to the federal agency; state monitoring ends here.')
+        ->call('confirmTransition')
+        ->assertHasNoErrors();
+
+    $fresh = app(CurrentTenant::class)->runAs($this->works, fn (): Project => $project->fresh());
+
+    expect($fresh->status)->toBe(ProjectStatus::Closed);
+});
+
+it('demands a reason for an early closure — the reason IS the override', function () {
+    $project = certifiedProjectIn($this->works);
+
+    $component = Livewire::actingAs($this->stateAdmin)
+        ->test(ProjectView::class, ['ulid' => $project->ulid])
+        ->call('startTransition', ProjectStatus::Closed->value);
+
+    // The screen has to say so up front, not only reject afterwards.
+    expect($component->instance()->availableTransitions())
+        ->toBe([['status' => ProjectStatus::Closed, 'needsReason' => true]]);
+
+    $component->set('transitionReason', '')
+        ->call('confirmTransition')
+        ->assertHasErrors(['transitionReason']);
+
+    $fresh = app(CurrentTenant::class)->runAs($this->works, fn (): Project => $project->fresh());
+
+    expect($fresh->status)->toBe(ProjectStatus::Certified);
+});
+
+it('puts the override reason on the entity’s own timeline, not just in a log', function () {
+    $project = certifiedProjectIn($this->works);
+
+    Livewire::actingAs($this->stateAdmin)
+        ->test(ProjectView::class, ['ulid' => $project->ulid])
+        ->call('startTransition', ProjectStatus::Closed->value)
+        ->set('transitionReason', 'Successor phase cancelled; no further monitoring is planned.')
+        ->call('confirmTransition')
+        ->assertHasNoErrors();
+
+    $event = app(CurrentTenant::class)->runAs(
+        $this->works,
+        fn () => $project->statusEvents()->where('to_status', ProjectStatus::Closed)->first(),
+    );
+
+    expect($event)->not->toBeNull()
+        ->and($event->tenant_id)->toBe($this->works->id)
+        ->and($event->actor_id)->toBe($this->stateAdmin->id)
+        ->and($event->reason)->toContain('Successor phase cancelled');
+});
+
+it('asks for no reason once the review window has actually run out', function () {
+    // Nothing to override here: the window closed a month ago, so closure is
+    // the ordinary end of the record and demanding a justification would be
+    // ceremony.
+    $project = certifiedProjectIn($this->works, ['post_completion_review_due_at' => now()->subMonth()->toDateString()]);
+
+    $component = Livewire::actingAs($this->stateAdmin)
+        ->test(ProjectView::class, ['ulid' => $project->ulid]);
+
+    expect($component->instance()->availableTransitions())
+        ->toBe([['status' => ProjectStatus::Closed, 'needsReason' => false]]);
+
+    $component->call('startTransition', ProjectStatus::Closed->value)
+        ->set('transitionReason', '')
+        ->call('confirmTransition')
+        ->assertHasNoErrors();
+
+    $fresh = app(CurrentTenant::class)->runAs($this->works, fn (): Project => $project->fresh());
+
+    expect($fresh->status)->toBe(ProjectStatus::Closed);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Cancellation */
+/* -------------------------------------------------------------------------- */
+
+it('cancels a project state-side, with the reason on the record', function () {
+    Livewire::actingAs($this->stateAdmin)
+        ->test(ProjectView::class, ['ulid' => $this->road->ulid])
+        ->call('startTransition', ProjectStatus::Cancelled->value)
+        ->set('transitionReason', 'Procurement review found the award irregular; the works are abandoned.')
+        ->call('confirmTransition')
+        ->assertHasNoErrors();
+
+    [$fresh, $event] = app(CurrentTenant::class)->runAs($this->works, fn (): array => [
+        $this->road->fresh(),
+        $this->road->statusEvents()->where('to_status', ProjectStatus::Cancelled)->first(),
+    ]);
+
+    expect($fresh->status)->toBe(ProjectStatus::Cancelled)
+        ->and($event?->reason)->toContain('Procurement review')
+        ->and($event?->tenant_id)->toBe($this->works->id);
+});
+
+it('refuses to cancel a project on a one-word reason', function () {
+    Livewire::actingAs($this->stateAdmin)
+        ->test(ProjectView::class, ['ulid' => $this->road->ulid])
+        ->call('startTransition', ProjectStatus::Cancelled->value)
+        ->set('transitionReason', 'stalled')
+        ->call('confirmTransition')
+        ->assertHasErrors(['transitionReason']);
+
+    $fresh = app(CurrentTenant::class)->runAs($this->works, fn (): Project => $this->road->fresh());
+
+    expect($fresh->status)->toBe(ProjectStatus::InProgress);
+});
+
+it('offers the state no intervention the machine forbids, on an already-closed project', function () {
+    $project = app(CurrentTenant::class)->runAs(
+        $this->works,
+        fn (): Project => Project::factory()->closed()->create(),
+    );
+
+    $component = Livewire::actingAs($this->stateAdmin)
+        ->test(ProjectView::class, ['ulid' => $project->ulid]);
+
+    expect($component->instance()->availableTransitions())->toBe([]);
+
+    $component->call('startTransition', ProjectStatus::Cancelled->value);
+
+    $fresh = app(CurrentTenant::class)->runAs($this->works, fn (): Project => $project->fresh());
+
+    expect($fresh->status)->toBe(ProjectStatus::Closed);
+});
+
 it('lets an executive viewer read a project but never intervene in one', function () {
     $component = Livewire::actingAs($this->execViewer)
         ->test(ProjectView::class, ['ulid' => $this->road->ulid])

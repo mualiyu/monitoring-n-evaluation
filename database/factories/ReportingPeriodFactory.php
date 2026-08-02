@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\ReportingCadence;
 use App\Models\ReportingPeriod;
+use App\Support\InstanceTime;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -92,7 +93,7 @@ class ReportingPeriodFactory extends Factory
 
             return [
                 ...$this->window(ReportingCadence::Monthly, $start->year, $start->month),
-                'due_at' => CarbonImmutable::now()->subDays($daysPastDue)->endOfDay(),
+                'due_at' => InstanceTime::endOfDay(CarbonImmutable::now()->subDays($daysPastDue)),
                 'closes_at' => null,
             ];
         });
@@ -102,7 +103,7 @@ class ReportingPeriodFactory extends Factory
     public function closed(int $daysAgo = 3): static
     {
         return $this->overdue($daysAgo + 7)->state([
-            'closes_at' => CarbonImmutable::now()->subDays($daysAgo)->endOfDay(),
+            'closes_at' => InstanceTime::endOfDay(CarbonImmutable::now()->subDays($daysAgo)),
         ]);
     }
 
@@ -122,7 +123,7 @@ class ReportingPeriodFactory extends Factory
     public function dueIn(int $days): static
     {
         return $this->state([
-            'due_at' => CarbonImmutable::now()->addDays($days)->endOfDay(),
+            'due_at' => InstanceTime::endOfDay(CarbonImmutable::now()->addDays($days)),
         ]);
     }
 
@@ -142,10 +143,12 @@ class ReportingPeriodFactory extends Factory
             'code' => $cadence->codeFor($year, $ordinal),
             'cadence' => $cadence,
             'label' => $cadence->labelFor($year, $ordinal),
+            // Dates carry the state's calendar date; instants are stored in
+            // UTC — the same split GenerateReportingPeriods makes.
             'period_start' => $start,
             'period_end' => $end,
-            'opens_at' => $start,
-            'due_at' => $end->addDays(7)->endOfDay(),
+            'opens_at' => $start->utc(),
+            'due_at' => InstanceTime::endOfDay($end->addDays(7)),
             'closes_at' => null,
             'generated_by' => 'factory',
         ];

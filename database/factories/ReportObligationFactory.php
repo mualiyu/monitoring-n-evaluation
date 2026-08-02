@@ -6,6 +6,7 @@ use App\Enums\ReportObligationStatus;
 use App\Models\Project;
 use App\Models\ReportingPeriod;
 use App\Models\ReportObligation;
+use App\Support\InstanceTime;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -33,7 +34,7 @@ class ReportObligationFactory extends Factory
             // invent their own (§1.1).
             'reporting_period_id' => fn (): int|ReportingPeriodFactory => ReportingPeriodFactory::currentOrNew(),
             'project_id' => Project::factory()->ongoing(),
-            'due_at' => CarbonImmutable::now()->addDays(7)->endOfDay(),
+            'due_at' => InstanceTime::endOfDay(CarbonImmutable::now()->addDays(7)),
             'status' => ReportObligationStatus::Pending,
             'progress_report_id' => null,
             'fulfilled_at' => null,
@@ -79,7 +80,7 @@ class ReportObligationFactory extends Factory
     {
         return $this->state([
             'status' => ReportObligationStatus::Missed,
-            'due_at' => CarbonImmutable::now()->subDays(10)->endOfDay(),
+            'due_at' => InstanceTime::endOfDay(CarbonImmutable::now()->subDays(10)),
             'overdue_notified_at' => CarbonImmutable::now()->subDays(9),
             'escalation_stage' => 1,
             'escalated_at' => CarbonImmutable::now()->subDays(9),
@@ -95,11 +96,16 @@ class ReportObligationFactory extends Factory
         ]);
     }
 
-    /** Deadline $days from now — negative for an obligation already overdue. */
+    /**
+     * Deadline $days from now — negative for an obligation already overdue.
+     * End of THAT day on the instance's wall clock, exactly as the generator
+     * builds it, so a fixture and a generated row are interchangeable and
+     * daysToDue() answers $days for both.
+     */
     public function dueIn(int $days): static
     {
         return $this->state([
-            'due_at' => CarbonImmutable::now()->addDays($days)->endOfDay(),
+            'due_at' => InstanceTime::endOfDay(CarbonImmutable::now()->addDays($days)),
         ]);
     }
 

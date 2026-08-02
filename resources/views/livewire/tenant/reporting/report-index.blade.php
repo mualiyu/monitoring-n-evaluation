@@ -8,6 +8,11 @@
 --}}
 @php
     $canCreate = auth()->user()?->can('create', \App\Models\ProgressReport::class) ?? false;
+    // Whether the waiver affordance exists on this screen at all. The per-row
+    // check below is the precise one (it matches the obligation's workspace);
+    // this one keeps the modal, and its wire targets, out of the DOM entirely
+    // for the roles that can never open it.
+    $canWaive = auth()->user()?->can('reports.waive') ?? false;
     $showingObligations = $this->showingObligations();
 @endphp
 
@@ -17,6 +22,14 @@
         :description="__('What this entity owes against the state reporting calendar, and everything filed so far. Deadlines are statutory — a late return is recorded as late.')"
     >
         <x-slot:actions>
+            <x-ui.button
+                variant="secondary"
+                size="sm"
+                icon="arrow-down-tray"
+                wire:click="export"
+                loading="export"
+            >{{ $showingObligations ? __('Export obligations') : __('Export returns') }}</x-ui.button>
+
             @if ($canCreate)
                 <x-ui.button size="sm" icon="plus" :href="url('/reports/create')">
                     {{ __('Start a report') }}
@@ -24,6 +37,16 @@
             @endif
         </x-slot:actions>
     </x-ui.page-header>
+
+    @if (session('status'))
+        <x-ui.alert variant="positive" class="mb-4" dismissible>{{ session('status') }}</x-ui.alert>
+    @endif
+
+    @if ($failure)
+        <x-ui.alert variant="critical" :title="__('That could not be done')" class="mb-4">
+            {{ $failure }}
+        </x-ui.alert>
+    @endif
 
     {{-- ---------------------------------------------------------------- --}}
     {{-- Summary row — the state of the desk, deliberately NOT filtered    --}}
@@ -111,12 +134,12 @@
                     />
                 </x-ui.form.group>
 
-                <x-ui.form.group name="projectId" :label="__('Project')">
+                <x-ui.form.group name="projectUlid" :label="__('Project')">
                     <x-ui.form.select
-                        name="projectId"
+                        name="projectUlid"
                         :placeholder="__('All projects')"
                         :options="$this->projectOptions"
-                        wire:model.live="projectId"
+                        wire:model.live="projectUlid"
                     />
                 </x-ui.form.group>
             </div>
@@ -140,7 +163,7 @@
                 <x-ui.skeleton variant="table" :rows="6" />
             </div>
 
-            <div wire:loading.delay.long.remove wire:target="search,periodId,status,projectId,view">
+            <div wire:loading.delay.long.remove wire:target="search,periodId,status,projectUlid,view">
                 @if ($this->obligations->isEmpty())
                     @if ($this->hasFilters())
                         <x-ui.empty-state
@@ -241,21 +264,40 @@
                                 </x-ui.table.cell>
 
                                 <x-ui.table.cell align="right">
-                                    @if ($filed)
-                                        <x-ui.button
-                                            variant="ghost"
-                                            size="sm"
-                                            trailing-icon="chevron-right"
-                                            :href="url('/reports/'.$obligation->progressReport?->ulid)"
-                                        >{{ __('Open return') }}</x-ui.button>
-                                    @elseif ($canCreate && $obligation->project)
-                                        <x-ui.button
-                                            variant="secondary"
-                                            size="sm"
-                                            icon="pencil-square"
-                                            :href="url('/reports/create?project='.$obligation->project->ulid.'&period='.$obligation->reportingPeriod->id)"
-                                        >{{ __('File it') }}</x-ui.button>
-                                    @endif
+                                    <div class="flex flex-wrap items-center justify-end gap-2">
+                                        @if ($filed)
+                                            <x-ui.button
+                                                variant="ghost"
+                                                size="sm"
+                                                trailing-icon="chevron-right"
+                                                :href="url('/reports/'.$obligation->progressReport?->ulid)"
+                                            >{{ __('Open return') }}</x-ui.button>
+                                        @elseif ($canCreate && $obligation->project)
+                                            <x-ui.button
+                                                variant="secondary"
+                                                size="sm"
+                                                icon="pencil-square"
+                                                :href="url('/reports/create?project='.$obligation->project->ulid.'&period='.$obligation->reportingPeriod->id)"
+                                            >{{ __('File it') }}</x-ui.button>
+                                        @endif
+
+                                        {{-- A window nobody can report against — a site
+                                             under water, a suspended contract — is excused
+                                             on the record rather than fabricated or left as
+                                             a permanent black mark. Only `reports.waive`
+                                             holders, and only while it is still outstanding. --}}
+                                        @can('waive', $obligation)
+                                            @if ($obligation->isOutstanding())
+                                                <x-ui.button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    icon="pause-circle"
+                                                    wire:click="startWaive({{ $obligation->id }})"
+                                                    loading="startWaive({{ $obligation->id }})"
+                                                >{{ __('Waive') }}</x-ui.button>
+                                            @endif
+                                        @endcan
+                                    </div>
                                 </x-ui.table.cell>
                             </x-ui.table.row>
                         @endforeach
@@ -278,7 +320,7 @@
                 <x-ui.skeleton variant="table" :rows="6" />
             </div>
 
-            <div wire:loading.delay.long.remove wire:target="search,periodId,status,projectId,view">
+            <div wire:loading.delay.long.remove wire:target="search,periodId,status,projectUlid,view">
                 @if ($this->reports->isEmpty())
                     @if ($this->hasFilters())
                         <x-ui.empty-state
@@ -373,5 +415,42 @@
                 </x-slot:footer>
             @endif
         </x-ui.card>
+    @endif
+
+    {{-- ---------------------------------------------------------------- --}}
+    {{-- Waive an obligation                                               --}}
+    {{-- ---------------------------------------------------------------- --}}
+    @if ($canWaive)
+        <x-ui.modal
+            name="waive-obligation"
+            :title="__('Waive this reporting obligation?')"
+            :description="__('The window stops being chased and is excluded from this entity’s compliance score. The waiver is permanent, attributed to you, and visible to state oversight.')"
+            max-width="md"
+        >
+            <x-ui.form.group
+                name="waiverReason"
+                :label="__('Reason')"
+                :hint="__('Required. Kept on the compliance record and read by anyone auditing this entity’s returns.')"
+                required
+            >
+                <x-ui.form.textarea
+                    name="waiverReason"
+                    rows="3"
+                    maxlength="1000"
+                    has-hint
+                    :placeholder="__('e.g. Site inaccessible for the whole period following the flooding of the access road.')"
+                    wire:model="waiverReason"
+                />
+            </x-ui.form.group>
+
+            <x-slot:footer>
+                <x-ui.button variant="secondary" wire:click="cancelWaive">{{ __('Cancel') }}</x-ui.button>
+                <x-ui.button
+                    wire:click="confirmWaive"
+                    loading="confirmWaive"
+                    icon="pause-circle"
+                >{{ __('Waive obligation') }}</x-ui.button>
+            </x-slot:footer>
+        </x-ui.modal>
     @endif
 </div>

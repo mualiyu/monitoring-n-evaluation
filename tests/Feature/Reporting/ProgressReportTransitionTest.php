@@ -19,19 +19,26 @@ use App\Actions\Reporting\StartProgressReport;
 use App\Actions\Reporting\SubmitProgressReport;
 use App\Actions\Reporting\TransitionProgressReportStatus;
 use App\Enums\ProgressReportStatus;
+use App\Enums\ProjectStatus;
 use App\Enums\ReportEntryMode;
 use App\Enums\Role;
+use App\Exceptions\Projects\ProjectRuleViolation;
 use App\Exceptions\Reporting\InvalidReportTransition;
 use App\Exceptions\Reporting\ReportRuleViolation;
+use App\Jobs\Reporting\NotifyProgressReportChain;
 use App\Models\ProgressReport;
 use App\Models\ProgressReportEvent;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\ReportingPeriod;
 use App\Models\ReportObligation;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Notifications\Reporting\ProgressReportChainUpdated;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
     Notification::fake();
@@ -50,6 +57,18 @@ beforeEach(function () {
         'expenditure_to_date' => '10000000.00',
         'manager_id' => $this->officer->id,
     ]);
+
+    // The assignment is what makes this consultant a consultant ON this
+    // project: StartProgressReport authorizes `view` on the project, and
+    // Project::scopeVisibleTo narrows project-level roles to their active
+    // assignments. An unassigned consultant is refused — asserted below.
+    ProjectAssignment::factory()->consultant()->create([
+        'project_id' => $this->project->id,
+        'user_id' => $this->consultant->id,
+        'assigned_by_id' => $this->admin->id,
+    ]);
+
+    $this->consultant = $this->consultant->fresh();
 
     $this->submit = app(SubmitProgressReport::class);
     $this->review = app(ReviewProgressReport::class);
@@ -339,6 +358,79 @@ it('discards a draft and hands the window back to the deadline engine', function
         ->and($start($this->project, $this->period, $this->consultant)->exists)->toBeTrue();
 });
 
+it('fulfils the obligation for its window even when the draft never pointed at one', function () {
+    // Started before the nightly sweep raised the obligation, so the draft
+    // carries no link to it. Matching only on the stored id would leave the
+    // obligation pending forever: the MDA gets chased, escalated to the
+    // secretariat, and scored as a miss for a return sitting on the desk.
+    $report = ($this->reportBy)($this->consultant);
+
+    expect($report->report_obligation_id)->toBeNull();
+
+    $obligation = ReportObligation::factory()
+        ->forProject($this->project)
+        ->forPeriod($this->period)
+        ->create();
+
+    ($this->submit)($report->fresh(), $this->consultant);
+
+    expect($obligation->fresh()->status->value)->toBe('fulfilled')
+        ->and($obligation->fresh()->progress_report_id)->toBe($report->id)
+        // The link is backfilled, so the row and the return agree from here on.
+        ->and($report->fresh()->report_obligation_id)->toBe($obligation->id);
+});
+
+it('never announces an approval that was rolled back', function () {
+    $report = ($this->reportBy)($this->consultant);
+
+    ($this->submit)($report, $this->consultant);
+    ($this->review)($report->fresh(), $this->officer);
+
+    // Certified between the review and the signature: the project record is
+    // frozen, so the propagation refuses and the whole approval transaction
+    // rolls back — including the status write.
+    $this->project->forceFill(['status' => ProjectStatus::Certified])->save();
+
+    // Fresh fakes: the earlier steps legitimately sent their own notifications,
+    // and what is under test is only what happens after this point.
+    Notification::fake();
+    Queue::fake([NotifyProgressReportChain::class]);
+
+    expect(fn () => ($this->approve)($report->fresh(), $this->admin))
+        ->toThrow(ProjectRuleViolation::class);
+
+    expect($report->fresh()->status)->toBe(ProgressReportStatus::Reviewed);
+
+    // The mail WAS queued — the dispatch happens inside the transaction that
+    // then rolled back, which is exactly the hole. A worker picking it up a
+    // moment later must find the row saying `reviewed` and say nothing, rather
+    // than telling the author and the project manager that a return was
+    // approved when the database says it was not.
+    $queued = null;
+
+    Queue::assertPushed(NotifyProgressReportChain::class, function (NotifyProgressReportChain $job) use (&$queued): bool {
+        $queued = $job;
+
+        return true;
+    });
+
+    $queued->handle();
+
+    Notification::assertNothingSent();
+});
+
+it('still announces a step that really happened', function () {
+    // The guard above must not silence the chain: the counterpart proves a
+    // genuine transition still reaches the people who own the next step.
+    $report = ($this->reportBy)($this->consultant);
+
+    Notification::fake();
+
+    ($this->submit)($report, $this->consultant);
+
+    Notification::assertSentTo($this->officer, ProgressReportChainUpdated::class);
+});
+
 it('refuses to discard anything that has been filed', function () {
     $report = ($this->reportBy)($this->consultant);
     ($this->submit)($report, $this->consultant);
@@ -385,4 +477,30 @@ it('refuses to open a return against a project that does not report', function (
 
     expect(fn () => app(StartProgressReport::class)($draft, $this->period, $this->officer))
         ->toThrow(ReportRuleViolation::class, 'does not report progress');
+});
+
+it('refuses a consultant a return on a project of this workspace they are not assigned to', function () {
+    // `reports.create` says a consultant may file returns. It does not say
+    // which projects are theirs — and the wizard's option list is a screen, not
+    // a control: a Livewire endpoint takes whatever payload it is handed.
+    $unassigned = Project::factory()->ongoing()->create(['title' => 'Unassigned Bridge Works']);
+
+    expect(fn () => app(StartProgressReport::class)($unassigned, $this->period, $this->consultant->fresh()))
+        ->toThrow(AuthorizationException::class);
+
+    expect(ProgressReport::query()->where('project_id', $unassigned->id)->count())->toBe(0);
+});
+
+it('refuses anyone a return on another workspace’s project, whatever their role here', function () {
+    $health = Tenant::factory()->create(['name' => 'Ministry of Health', 'slug' => 'health']);
+
+    $foreign = app(CurrentTenant::class)->runAs($health, fn (): Project => Project::factory()->ongoing()->create());
+
+    actingOnTenant($this->works);
+
+    // An MDA admin of Works holds every reporting permission there is — in
+    // Works. The tenant match inside the policy is what stops the ULID of
+    // another ministry's project from becoming a return in this one.
+    expect(fn () => app(StartProgressReport::class)($foreign, $this->period, $this->admin->fresh()))
+        ->toThrow(AuthorizationException::class);
 });

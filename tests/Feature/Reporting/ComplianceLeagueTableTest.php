@@ -14,8 +14,10 @@
  */
 
 use App\Actions\Oversight\BuildComplianceLeagueTable;
+use App\Actions\Reporting\DiscardProgressReportDraft;
 use App\Actions\Reporting\SubmitProgressReport;
 use App\Actions\Reporting\WaiveReportObligation;
+use App\Enums\ProgressReportStatus;
 use App\Enums\Role;
 use App\Models\ProgressReport;
 use App\Models\Project;
@@ -176,6 +178,39 @@ it('serves the board from cache, and busts it the moment a return is filed', fun
     $after = ($this->build)($this->stateAdmin, $this->period);
 
     expect($after['totals']['submitted'])->toBe(5);
+});
+
+it('busts the board again when the return behind it is taken back', function () {
+    // A return can be sent back to draft and then discarded, which hands the
+    // window to the deadline engine again. If the board is not busted with it,
+    // the state keeps being served an MDA as having filed for a window that no
+    // longer has a return in it — for five minutes, on a number the manual's
+    // sanctions rest on.
+    $report = $this->current->runAs($this->works, function (): ProgressReport {
+        $consultant = memberOf(User::factory()->create(), $this->works, Role::Consultant);
+        $obligation = ReportObligation::query()->outstanding()->firstOrFail();
+
+        $report = ProgressReport::factory()
+            ->forObligation($obligation)
+            ->create(['physical_progress_claimed' => '95.00', 'created_by_id' => $consultant->id]);
+
+        app(SubmitProgressReport::class)($report, $consultant);
+
+        return $report->fresh();
+    });
+
+    expect(($this->build)($this->stateAdmin, $this->period)['totals']['submitted'])->toBe(5);
+
+    $this->current->runAs($this->works, function () use ($report) {
+        $author = User::query()->findOrFail($report->created_by_id);
+
+        // Back to the author's hands — the only state a return is discardable in.
+        $report->forceFill(['status' => ProgressReportStatus::Draft])->save();
+
+        app(DiscardProgressReportDraft::class)($report->fresh(), $author);
+    });
+
+    expect(($this->build)($this->stateAdmin, $this->period)['totals']['submitted'])->toBe(4);
 });
 
 it('refuses the board to a workspace user, however senior in their own ministry', function () {

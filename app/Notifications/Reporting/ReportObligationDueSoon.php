@@ -3,6 +3,7 @@
 namespace App\Notifications\Reporting;
 
 use App\Models\ReportObligation;
+use App\Support\InstanceTime;
 use App\Support\SurfaceUrl;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -47,7 +48,10 @@ class ReportObligationDueSoon extends Notification
                 'period' => $period->label,
                 'title' => $title,
                 'reference' => $reference,
-                'due' => $this->obligation->due_at->toDayDateTimeString(),
+                // Rendered on the instance's wall clock: the stored instant is
+                // UTC, and an MDA told its deadline is "8 April 00:59" for a
+                // return due at the end of the 7th stops trusting the mail.
+                'due' => InstanceTime::local($this->obligation->due_at)->translatedFormat('j M Y, H:i'),
             ]))
             ->line(__('Returns filed after the deadline are recorded as late on the state compliance report.'))
             ->action(__('Open the workspace'), SurfaceUrl::base($this->obligation->tenant));

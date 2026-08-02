@@ -3,6 +3,7 @@
 namespace App\Actions\Reporting;
 
 use App\Enums\ReportObligationStatus;
+use App\Models\ProgressReport;
 use App\Models\Project;
 use App\Models\ReportingPeriod;
 use App\Models\ReportObligation;
@@ -133,11 +134,13 @@ class GenerateReportObligations
                 ->first();
 
             if ($obligation === null) {
-                ReportObligation::query()->create([
+                $obligation = ReportObligation::query()->create([
                     'reporting_period_id' => $period->id,
                     'project_id' => $projectId,
                     'due_at' => $period->due_at,
                 ]);
+
+                $this->adoptExistingReport($obligation);
 
                 return 1;
             }
@@ -156,5 +159,54 @@ class GenerateReportObligations
 
             return 1;
         });
+    }
+
+    /**
+     * A brand-new obligation may already have been ANSWERED. The sweep runs
+     * nightly, so a consultant who files on the first morning of a window — or
+     * any project that became reportable after the sweep — produces a return
+     * before the row that demands it exists.
+     *
+     * Born pending, that row would chase an MDA for a return already on file:
+     * a reminder, then an overdue notice, then an escalation to the
+     * secretariat, and a permanent miss on the league table. So the generator
+     * adopts what it finds: the link is written both ways, and a return that
+     * was actually FILED (not a draft still being typed) fulfils the obligation
+     * at the moment it was submitted, with the lateness the report itself
+     * recorded — never re-derived, because on-time is judged when the MDA filed
+     * (§9.6), not when this sweep happened to notice.
+     */
+    private function adoptExistingReport(ReportObligation $obligation): void
+    {
+        if ($obligation->project_id === null) {
+            return;
+        }
+
+        $report = ProgressReport::query()
+            ->forPeriod($obligation->project_id, $obligation->reporting_period_id)
+            ->first();
+
+        if ($report === null) {
+            return;
+        }
+
+        $report->report_obligation_id = $obligation->id;
+        $report->save();
+
+        // A draft is not a filed return: the obligation stays pending, and
+        // SubmitProgressReport fulfils it when the author files.
+        if ($report->submitted_at === null) {
+            return;
+        }
+
+        // forceFill: the compliance columns are not fillable, and this is the
+        // one place outside SubmitProgressReport / WaiveReportObligation that
+        // writes them — for a submission that predates the row itself.
+        $obligation->forceFill([
+            'status' => ReportObligationStatus::Fulfilled,
+            'progress_report_id' => $report->id,
+            'fulfilled_at' => $report->submitted_at,
+            'submitted_late' => $report->submitted_late,
+        ])->save();
     }
 }

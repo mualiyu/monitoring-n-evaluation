@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Models\ReportingPeriod;
 use App\Models\ReportObligation;
 use App\Models\User;
+use App\Support\InstanceTime;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -52,7 +53,7 @@ class ProgressReportFactory extends Factory
             'contractor_id' => null,
             // Snapshotted from the obligation in StartProgressReport; a
             // fixture supplies its own, because the column is not nullable.
-            'due_at' => CarbonImmutable::now()->addDays(7)->endOfDay(),
+            'due_at' => InstanceTime::endOfDay(CarbonImmutable::now()->addDays(7)),
             'submitted_late' => false,
             'created_by_id' => User::factory(),
             'submitted_by_id' => null,

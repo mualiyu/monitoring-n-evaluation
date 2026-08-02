@@ -4,6 +4,7 @@ namespace App\Actions\Reporting;
 
 use App\Enums\ReportingCadence;
 use App\Models\ReportingPeriod;
+use App\Support\InstanceTime;
 use App\Support\SettingsRepository;
 use Carbon\CarbonImmutable;
 
@@ -29,6 +30,12 @@ use Carbon\CarbonImmutable;
  * instance accepts late returns (the default) — a null close is what makes
  * "late but filed" possible; when late submission is off, the window closes at
  * its deadline and reporting:close-periods can mark the rest missed.
+ *
+ * TIMEZONE: every boundary is a wall-clock fact of the STATE — "due at the end
+ * of the 7th" means 23:59:59 in Africa/Lagos, which is 22:59:59 UTC. The date
+ * columns (`period_start`, `period_end`) keep the local calendar date; the
+ * instant columns (`opens_at`, `due_at`, `closes_at`) are converted to UTC on
+ * the way in, per App\Support\InstanceTime.
  */
 class GenerateReportingPeriods
 {
@@ -52,9 +59,11 @@ class GenerateReportingPeriods
                     [
                         'cadence' => $cadence,
                         'label' => $cadence->labelFor($year, $ordinal),
+                        // Dates keep the state's calendar date; instants are
+                        // stored as the UTC moment they actually happen at.
                         'period_start' => $start,
                         'period_end' => $end,
-                        'opens_at' => $start,
+                        'opens_at' => $start->utc(),
                         'due_at' => $dueAt,
                         'closes_at' => $allowLate ? null : $dueAt,
                         'generated_by' => $generatedBy,
@@ -68,15 +77,20 @@ class GenerateReportingPeriods
         return $count;
     }
 
+    /**
+     * The deadline as a UTC instant. $periodEnd arrives on the instance's wall
+     * clock (ReportingCadence), so "end of that day" is computed there and
+     * converted once, at the boundary.
+     */
     private function dueAt(ReportingCadence $cadence, CarbonImmutable $periodEnd, SettingsRepository $settings): CarbonImmutable
     {
         return match ($cadence) {
-            ReportingCadence::Monthly => $periodEnd
-                ->addDays($settings->int('reporting', 'monthly_due_days', 7))
-                ->endOfDay(),
-            ReportingCadence::Quarterly => $periodEnd
-                ->addDays($settings->int('reporting', 'quarterly_due_days', 14))
-                ->endOfDay(),
+            ReportingCadence::Monthly => InstanceTime::endOfDay(
+                $periodEnd->addDays($settings->int('reporting', 'monthly_due_days', 7)),
+            ),
+            ReportingCadence::Quarterly => InstanceTime::endOfDay(
+                $periodEnd->addDays($settings->int('reporting', 'quarterly_due_days', 14)),
+            ),
             ReportingCadence::Biannual => $this->biannualDueAt($periodEnd, $settings),
             ReportingCadence::Annual => $this->annualDueAt($periodEnd, $settings),
         };
@@ -94,8 +108,8 @@ class GenerateReportingPeriods
     private function biannualDueAt(CarbonImmutable $periodEnd, SettingsRepository $settings): CarbonImmutable
     {
         return match ($settings->string('reporting', 'biannual_due_rule', 'end_of_following_month')) {
-            'end_of_period' => $periodEnd->endOfDay(),
-            default => $periodEnd->startOfMonth()->addMonth()->endOfMonth()->endOfDay(),
+            'end_of_period' => InstanceTime::endOfDay($periodEnd),
+            default => InstanceTime::endOfDay($periodEnd->startOfMonth()->addMonth()->endOfMonth()),
         };
     }
 
@@ -106,8 +120,10 @@ class GenerateReportingPeriods
     private function annualDueAt(CarbonImmutable $periodEnd, SettingsRepository $settings): CarbonImmutable
     {
         return match ($settings->string('reporting', 'annual_due_rule', 'end_of_q1')) {
-            'end_of_period' => $periodEnd->endOfDay(),
-            default => CarbonImmutable::createStrict($periodEnd->year + 1, 3, 1)->endOfMonth()->endOfDay(),
+            'end_of_period' => InstanceTime::endOfDay($periodEnd),
+            default => InstanceTime::endOfDay(
+                CarbonImmutable::createStrict($periodEnd->year + 1, 3, 1, 0, 0, 0, InstanceTime::zone())->endOfMonth(),
+            ),
         };
     }
 }

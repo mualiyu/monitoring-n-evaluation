@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Livewire\Tenant\Reporting;
 
+use App\Actions\Reporting\WaiveReportObligation;
 use App\Enums\ProgressReportStatus;
 use App\Enums\ReportObligationStatus;
+use App\Exceptions\Reporting\ReportRuleViolation;
 use App\Models\ProgressReport;
 use App\Models\Project;
 use App\Models\ReportingPeriod;
 use App\Models\ReportObligation;
 use App\Models\User;
+use App\Support\InstanceTime;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -21,6 +24,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The MDA's reporting desk — what is owed, and what has been filed.
@@ -56,8 +60,25 @@ class ReportIndex extends Component
     #[Url(except: '')]
     public string $status = '';
 
+    /**
+     * The project filter, keyed by ULID rather than by primary key. A bookmark
+     * or a pasted link carries this value, and an auto-increment id in a URL
+     * both enumerates another MDA's volumes and invites a guess at a row that
+     * is not yours — which is why every tenant-owned model is addressed by its
+     * public id (rules/tenancy.md). Nothing leaks either way, because the
+     * lookup runs inside the TenantScope; this is the difference between
+     * "refused" and "not addressable".
+     */
     #[Url(as: 'project', except: '')]
-    public string $projectId = '';
+    public string $projectUlid = '';
+
+    /** The obligation a waiver is being written for, and its reason. */
+    public ?int $waivingId = null;
+
+    public string $waiverReason = '';
+
+    /** An Action's own refusal, shown verbatim. */
+    public ?string $failure = null;
 
     public function mount(): void
     {
@@ -89,21 +110,21 @@ class ReportIndex extends Component
         $this->resetPage();
     }
 
-    public function updatedProjectId(): void
+    public function updatedProjectUlid(): void
     {
         $this->resetPage();
     }
 
     public function clearFilters(): void
     {
-        $this->reset(['search', 'periodId', 'status', 'projectId']);
+        $this->reset(['search', 'periodId', 'status', 'projectUlid']);
         $this->resetPage();
     }
 
     public function hasFilters(): bool
     {
         return $this->search !== '' || $this->periodId !== ''
-            || $this->status !== '' || $this->projectId !== '';
+            || $this->status !== '' || $this->projectUlid !== '';
     }
 
     public function showingObligations(): bool
@@ -142,9 +163,22 @@ class ReportIndex extends Component
         return ReportObligation::query()
             ->visibleTo($user)
             ->when($this->periodId !== '', fn (Builder $q) => $q->where('reporting_period_id', $this->periodId))
-            ->when($this->projectId !== '', fn (Builder $q) => $q->where('project_id', $this->projectId))
+            ->when($this->projectUlid !== '', fn (Builder $q) => $q->whereIn('project_id', $this->filteredProject()))
             ->when($this->status !== '', fn (Builder $q) => $q->where('status', $this->status))
             ->when($this->search !== '', fn (Builder $q) => $q->whereIn('project_id', $this->searchMatches()));
+    }
+
+    /**
+     * The primary key behind the ULID in the filter — as a subquery, so the
+     * TenantScope on Project confines it to the bound MDA exactly as the outer
+     * query is confined. A ULID from another workspace matches nothing rather
+     * than resolving to a row and then being filtered out somewhere later.
+     *
+     * @return Builder<Project>
+     */
+    private function filteredProject(): Builder
+    {
+        return Project::query()->where('ulid', $this->projectUlid)->select('id');
     }
 
     /**
@@ -156,15 +190,7 @@ class ReportIndex extends Component
     #[Computed]
     public function reports(): LengthAwarePaginator
     {
-        /** @var User $user */
-        $user = auth()->user();
-
-        return ProgressReport::query()
-            ->visibleTo($user)
-            ->when($this->periodId !== '', fn (Builder $q) => $q->where('reporting_period_id', $this->periodId))
-            ->when($this->projectId !== '', fn (Builder $q) => $q->where('project_id', $this->projectId))
-            ->when($this->status !== '', fn (Builder $q) => $q->where('status', $this->status))
-            ->when($this->search !== '', fn (Builder $q) => $q->whereIn('project_id', $this->searchMatches()))
+        return $this->reportQuery()
             ->with([
                 'project:id,ulid,title,reference',
                 'reportingPeriod:id,code,label,due_at',
@@ -173,6 +199,20 @@ class ReportIndex extends Component
             ->orderByDesc('updated_at')
             ->orderByDesc('id')
             ->paginate(25, pageName: 'reportsPage');
+    }
+
+    /** @return Builder<ProgressReport> */
+    private function reportQuery(): Builder
+    {
+        /** @var User $user */
+        $user = auth()->user();
+
+        return ProgressReport::query()
+            ->visibleTo($user)
+            ->when($this->periodId !== '', fn (Builder $q) => $q->where('reporting_period_id', $this->periodId))
+            ->when($this->projectUlid !== '', fn (Builder $q) => $q->whereIn('project_id', $this->filteredProject()))
+            ->when($this->status !== '', fn (Builder $q) => $q->where('status', $this->status))
+            ->when($this->search !== '', fn (Builder $q) => $q->whereIn('project_id', $this->searchMatches()));
     }
 
     /**
@@ -288,7 +328,11 @@ class ReportIndex extends Component
             ->get(['id', 'code', 'label', 'due_at']);
     }
 
-    /** @return array<int, string> */
+    /**
+     * Keyed by ULID, because that is what the filter and the URL carry.
+     *
+     * @return array<string, string>
+     */
     #[Computed]
     public function projectOptions(): array
     {
@@ -298,7 +342,7 @@ class ReportIndex extends Component
         return Project::query()
             ->visibleTo($user)
             ->orderBy('title')
-            ->pluck('title', 'id')
+            ->pluck('title', 'ulid')
             ->all();
     }
 
@@ -315,6 +359,206 @@ class ReportIndex extends Component
         return collect(ProgressReportStatus::cases())
             ->mapWithKeys(fn (ProgressReportStatus $case) => [$case->value => $case->label()])
             ->all();
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* Waiving an obligation */
+    /* ---------------------------------------------------------------- */
+
+    /**
+     * The obligation a waiver names, resolved through `visibleTo()` — the same
+     * narrowing the list runs. An id outside this workspace (or outside a
+     * consultant's assignments) is a 404, not a refusal that confirms the row
+     * exists somewhere.
+     */
+    private function waivableObligation(int $id): ReportObligation
+    {
+        /** @var User $user */
+        $user = auth()->user();
+
+        return ReportObligation::query()->visibleTo($user)->findOrFail($id);
+    }
+
+    public function startWaive(int $obligationId): void
+    {
+        $this->authorize('waive', $this->waivableObligation($obligationId));
+
+        $this->resetErrorBag();
+        $this->failure = null;
+        $this->waiverReason = '';
+        $this->waivingId = $obligationId;
+
+        $this->dispatch('open-modal', 'waive-obligation');
+    }
+
+    public function cancelWaive(): void
+    {
+        $this->waivingId = null;
+        $this->waiverReason = '';
+        $this->resetErrorBag();
+
+        $this->dispatch('close-modal', 'waive-obligation');
+    }
+
+    /**
+     * Excusing a window, on the record. The reason is not a formality: it is
+     * the only thing standing between "the site was under water all month" and
+     * an MDA quietly deleting its own black marks, and it is what an auditor
+     * reads afterwards. Authority (`reports.waive`), the outstanding-status
+     * check and the reason are all re-asserted by WaiveReportObligation — this
+     * screen only stops a doomed round trip and surfaces the refusal.
+     */
+    public function confirmWaive(WaiveReportObligation $waive): void
+    {
+        $obligation = $this->waivableObligation((int) $this->waivingId);
+
+        $this->authorize('waive', $obligation);
+
+        $this->validate([
+            'waiverReason' => ['required', 'string', 'min:10', 'max:1000'],
+        ], [
+            'waiverReason.required' => __('Say why this window cannot be reported on. A waiver with no reason is an unexplained gap in the compliance record.'),
+            'waiverReason.min' => __('Give the auditor something to read — a few words at least.'),
+        ], [
+            'waiverReason' => __('reason'),
+        ]);
+
+        $this->failure = null;
+
+        try {
+            /** @var User $actor */
+            $actor = auth()->user();
+
+            $waive($obligation, $actor, $this->waiverReason);
+        } catch (ReportRuleViolation $exception) {
+            $this->failure = $exception->getMessage();
+            $this->dispatch('close-modal', 'waive-obligation');
+
+            return;
+        }
+
+        $this->waivingId = null;
+        $this->waiverReason = '';
+
+        unset($this->obligations, $this->stats);
+        $this->dispatch('close-modal', 'waive-obligation');
+
+        session()->flash('status', __('Obligation waived. It no longer counts against this entity on the state compliance board.'));
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* Export */
+    /* ---------------------------------------------------------------- */
+
+    /**
+     * CSV of the list currently on screen — the obligations desk or the filed
+     * returns, under exactly the filters in force. Streamed in chunks so a
+     * ministry with 5,000 obligations a year does not build an array in memory.
+     *
+     * The authorization is repeated HERE and not merely inherited from mount():
+     * this is a network-callable method, a client can invoke it long after the
+     * screen was opened, and the rows it writes go straight past the view layer
+     * into a file someone forwards. Both queries are the list's own builders,
+     * so a row can never be missing from the screen and present in the export.
+     */
+    public function export(): StreamedResponse
+    {
+        $this->authorize('viewAny', ProgressReport::class);
+
+        return $this->showingObligations() ? $this->exportObligations() : $this->exportReports();
+    }
+
+    private function exportObligations(): StreamedResponse
+    {
+        $query = $this->obligationQuery()
+            ->with(['project:id,title,reference', 'reportingPeriod:id,label,cadence,due_at'])
+            ->orderBy('due_at')
+            ->orderBy('id');
+
+        return $this->streamCsv('report-obligations', [
+            __('Project'), __('Reference'), __('Window'), __('Cadence'),
+            __('Deadline'), __('Status'), __('Filed on'), __('Filed late'),
+            __('Waiver reason'),
+        ], function ($handle) use ($query): void {
+            $query->chunk(500, function (iterable $obligations) use ($handle): void {
+                /** @var ReportObligation $obligation */
+                foreach ($obligations as $obligation) {
+                    // An obligation with no project is an MDA-level one (Phase 2
+                    // consolidation); the row has to stand without a project name.
+                    $project = $obligation->project;
+
+                    fputcsv($handle, [
+                        $project === null ? __('Entity-level return') : $project->title,
+                        $project?->reference,
+                        $obligation->reportingPeriod->label,
+                        $obligation->reportingPeriod->cadence->label(),
+                        // The state's wall clock, not UTC — the deadline the
+                        // MDA was actually given.
+                        InstanceTime::local($obligation->due_at)->toDateString(),
+                        $obligation->status->label(),
+                        $obligation->fulfilled_at === null ? null : InstanceTime::local($obligation->fulfilled_at)->toDateString(),
+                        $obligation->submitted_late ? __('Yes') : __('No'),
+                        $obligation->waiver_reason,
+                    ]);
+                }
+            });
+        });
+    }
+
+    private function exportReports(): StreamedResponse
+    {
+        $query = $this->reportQuery()
+            ->with(['project:id,title,reference', 'reportingPeriod:id,label', 'submittedBy:id,name'])
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id');
+
+        return $this->streamCsv('progress-reports', [
+            __('Project'), __('Reference'), __('Window'), __('Status'),
+            __('Progress claimed %'), __('Period spend'), __('Deadline'),
+            __('Filed on'), __('Filed by'), __('Filed late'),
+        ], function ($handle) use ($query): void {
+            $query->chunk(500, function (iterable $reports) use ($handle): void {
+                /** @var ProgressReport $report */
+                foreach ($reports as $report) {
+                    fputcsv($handle, [
+                        $report->project->title,
+                        $report->project->reference,
+                        $report->reportingPeriod->label,
+                        $report->status->label(),
+                        $report->physical_progress_claimed,
+                        $report->period_expenditure->toDecimalString(),
+                        InstanceTime::local($report->due_at)->toDateString(),
+                        $report->submitted_at === null ? null : InstanceTime::local($report->submitted_at)->toDateString(),
+                        $report->submittedBy?->name,
+                        $report->submitted_late ? __('Yes') : __('No'),
+                    ]);
+                }
+            });
+        });
+    }
+
+    /**
+     * @param  list<string>  $headings
+     * @param  callable(resource): void  $rows
+     */
+    private function streamCsv(string $name, array $headings, callable $rows): StreamedResponse
+    {
+        $filename = $name.'-'.Carbon::now()->format('Y-m-d-Hi').'.csv';
+
+        return response()->streamDownload(function () use ($headings, $rows): void {
+            $handle = fopen('php://output', 'wb');
+
+            // BOM: Excel on Windows reads UTF-8 CSV as cp1252 without it, which
+            // mangles the naira sign and every accented place name.
+            fwrite($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, $headings);
+            $rows($handle);
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 
     public function render(): View

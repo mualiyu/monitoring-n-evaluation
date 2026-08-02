@@ -31,6 +31,7 @@ use App\Models\ReportObligation;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 
@@ -133,10 +134,36 @@ it('filters the desk by window and by project, and persists the filters in the U
     expect($component->instance()->obligations->pluck('project.title')->all())
         ->toBe(['Township Road Rehabilitation']);
 
-    $component->set('periodId', '')->set('projectId', (string) $otherProject->id);
+    // The project filter is keyed by ULID, not by primary key: this value ends
+    // up in a bookmarked URL, and an auto-increment id there tells anyone
+    // holding the link how many projects the state has.
+    $component->set('periodId', '')->set('projectUlid', $otherProject->ulid);
 
     expect($component->instance()->obligations->pluck('project.title')->all())
         ->toBe(['Storm Drainage Upgrade']);
+});
+
+it('carries the project filter in the URL as a ULID, and matches nothing for a foreign one', function () {
+    ReportObligation::factory()->forProject($this->project)->forPeriod($this->period)->create();
+
+    $health = Tenant::factory()->create(['name' => 'Ministry of Health', 'slug' => 'health']);
+
+    $foreign = app(CurrentTenant::class)->runAs($health, fn (): Project => Project::factory()->ongoing()->create());
+
+    actingOnTenant($this->works);
+
+    $component = Livewire::withQueryParams(['project' => $this->project->ulid])
+        ->actingAs($this->officer)
+        ->test(ReportIndex::class)
+        ->assertSet('projectUlid', $this->project->ulid);
+
+    expect($component->instance()->obligations->pluck('project.title')->all())
+        ->toBe(['Township Road Rehabilitation'])
+        // A ULID belonging to another ministry resolves inside the TenantScope,
+        // so it matches no project and therefore no obligation — it does not
+        // quietly widen the list to everything.
+        ->and($component->set('projectUlid', $foreign->ulid)->instance()->obligations->pluck('id')->all())
+        ->toBe([]);
 });
 
 it('narrows the desk to their own projects for a consultant', function () {
@@ -179,6 +206,118 @@ it('denies the desk to a workspace user with no reporting permissions at all', f
     Livewire::actingAs($stranger)
         ->test(ReportIndex::class)
         ->assertForbidden();
+});
+
+/* -------------------------------------------------------------------------- */
+/* Waiving an obligation */
+/* -------------------------------------------------------------------------- */
+
+it('waives an obligation from the desk, with a reason, for someone who may', function () {
+    $obligation = ReportObligation::factory()->forProject($this->project)->forPeriod($this->period)->create();
+
+    Livewire::actingAs($this->admin)
+        ->test(ReportIndex::class)
+        // The control itself, not the word: "Waived" is also a status option in
+        // the filter bar, and asserting on that would pass for everyone.
+        ->assertSeeHtml('startWaive('.$obligation->id.')')
+        ->call('startWaive', $obligation->id)
+        ->assertSet('waivingId', $obligation->id)
+        ->set('waiverReason', 'Site inaccessible for the whole period following the flooding of the access road.')
+        ->call('confirmWaive')
+        ->assertHasNoErrors();
+
+    $fresh = $obligation->fresh();
+
+    expect($fresh->status)->toBe(ReportObligationStatus::Waived)
+        ->and($fresh->waived_by_id)->toBe($this->admin->id)
+        ->and($fresh->waiver_reason)->toContain('flooding');
+});
+
+it('refuses to waive an obligation without saying why', function () {
+    $obligation = ReportObligation::factory()->forProject($this->project)->forPeriod($this->period)->create();
+
+    Livewire::actingAs($this->admin)
+        ->test(ReportIndex::class)
+        ->call('startWaive', $obligation->id)
+        ->set('waiverReason', '')
+        ->call('confirmWaive')
+        ->assertHasErrors('waiverReason');
+
+    // A waiver with no reason is an unexplained hole in the compliance record,
+    // so nothing moved.
+    expect($obligation->fresh()->status)->toBe(ReportObligationStatus::Pending);
+
+    // …and neither does a reason too thin to audit.
+    Livewire::actingAs($this->admin)
+        ->test(ReportIndex::class)
+        ->call('startWaive', $obligation->id)
+        ->set('waiverReason', 'no')
+        ->call('confirmWaive')
+        ->assertHasErrors('waiverReason');
+
+    expect($obligation->fresh()->status)->toBe(ReportObligationStatus::Pending);
+});
+
+it('offers no waiver to an officer who does not hold the permission, and refuses it if they call it anyway', function () {
+    $obligation = ReportObligation::factory()->forProject($this->project)->forPeriod($this->period)->create();
+
+    // `reports.waive` is the MDA admin's and state oversight's — an M&E officer
+    // reviews returns, they do not excuse an entity from filing them.
+    Livewire::actingAs($this->officer)
+        ->test(ReportIndex::class)
+        ->assertOk()
+        // Neither the row control nor the modal reaches the DOM — no dead
+        // affordance, and no wire target for a role that can never use it.
+        ->assertDontSeeHtml('startWaive(')
+        ->assertDontSeeHtml('confirmWaive')
+        // Hiding the button is a courtesy; the guard is on the method, because
+        // a Livewire endpoint is a public endpoint.
+        ->call('startWaive', $obligation->id)
+        ->assertForbidden();
+
+    expect($obligation->fresh()->status)->toBe(ReportObligationStatus::Pending);
+});
+
+it('resolves nothing for another workspace’s obligation id', function () {
+    $health = Tenant::factory()->create(['name' => 'Ministry of Health', 'slug' => 'health']);
+
+    $foreign = app(CurrentTenant::class)->runAs($health, function (): ReportObligation {
+        $project = Project::factory()->ongoing()->create();
+
+        return ReportObligation::factory()->forProject($project)->forPeriod($this->period)->create();
+    });
+
+    actingOnTenant($this->works);
+
+    // Not found, not forbidden: an admin of Works must not learn that this id
+    // is a real obligation somewhere else in the state. The lookup runs inside
+    // the TenantScope, so the row simply does not exist from here — which is
+    // rendered as a 404 by the HTTP handler.
+    expect(fn () => Livewire::actingAs($this->admin)
+        ->test(ReportIndex::class)
+        ->call('startWaive', $foreign->id))
+        ->toThrow(ModelNotFoundException::class);
+
+    expect(app(CurrentTenant::class)->runAs($health, fn () => $foreign->fresh()->status))
+        ->toBe(ReportObligationStatus::Pending);
+});
+
+it('refuses to waive a window that has already been answered', function () {
+    $obligation = ReportObligation::factory()
+        ->forProject($this->project)
+        ->forPeriod($this->period)
+        ->fulfilled()
+        ->create();
+
+    $component = Livewire::actingAs($this->admin)
+        ->test(ReportIndex::class)
+        ->call('startWaive', $obligation->id)
+        ->set('waiverReason', 'Filed under protest; the figures are disputed.')
+        ->call('confirmWaive');
+
+    // The Action's own refusal, shown verbatim rather than paraphrased.
+    expect($component->instance()->failure)->toContain('fulfilled')
+        ->and($obligation->fresh()->status)->toBe(ReportObligationStatus::Fulfilled);
 });
 
 it('serves /reports over the real subdomain route', function () {

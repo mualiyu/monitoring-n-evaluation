@@ -13,8 +13,11 @@
  */
 
 use App\Actions\Reporting\FlagOverdueObligations;
+use App\Actions\Reporting\GenerateReportObligations;
 use App\Actions\Reporting\SendDeadlineReminders;
+use App\Enums\ReportObligationStatus;
 use App\Enums\Role;
+use App\Models\ProgressReport;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
 use App\Models\ReportingPeriod;
@@ -140,6 +143,58 @@ it('reminds the people accountable for the project, not the whole ministry', fun
 
     Notification::assertSentTo($this->consultant, ReportObligationDueSoon::class);
     Notification::assertNotSentTo($bystander, ReportObligationDueSoon::class);
+});
+
+it('adopts a return that was filed before the obligation for it existed, and chases nobody', function () {
+    // The sweep runs nightly, so a consultant who files on the first morning of
+    // a window produces a return before the row that demands it exists. Born
+    // pending, that row would chase an MDA for a return already on file: a
+    // reminder, an overdue notice, an escalation to the secretariat, and a
+    // permanent miss on the league table.
+    $report = ProgressReport::factory()
+        ->forProject($this->project)
+        ->forPeriod($this->period)
+        ->submitted($this->consultant)
+        ->create(['created_by_id' => $this->consultant->id]);
+
+    expect($report->report_obligation_id)->toBeNull();
+
+    app(GenerateReportObligations::class)();
+
+    $obligation = ReportObligation::query()->where('project_id', $this->project->id)->firstOrFail();
+
+    expect($obligation->status)->toBe(ReportObligationStatus::Fulfilled)
+        ->and($obligation->progress_report_id)->toBe($report->id)
+        // Fulfilled at the moment the MDA actually filed, with the lateness the
+        // return itself recorded — never re-derived from when this sweep
+        // happened to notice (§9.6).
+        ->and($obligation->fulfilled_at?->toDateTimeString())->toBe($report->submitted_at->toDateTimeString())
+        ->and($obligation->submitted_late)->toBeFalse()
+        // …and the link is written both ways.
+        ->and($report->fresh()->report_obligation_id)->toBe($obligation->id);
+
+    ($this->remind)();
+    ($this->flag)();
+
+    Notification::assertNothingSent();
+});
+
+it('leaves an obligation pending when all it finds is a draft still being typed', function () {
+    $draft = ProgressReport::factory()
+        ->forProject($this->project)
+        ->forPeriod($this->period)
+        ->create(['created_by_id' => $this->consultant->id]);
+
+    app(GenerateReportObligations::class)();
+
+    $obligation = ReportObligation::query()->where('project_id', $this->project->id)->firstOrFail();
+
+    // A draft is not a filed return: the window is still owed, the link is
+    // there so filing it later fulfils this very row, and the ladder keeps
+    // reminding the consultant to finish it.
+    expect($obligation->status)->toBe(ReportObligationStatus::Pending)
+        ->and($obligation->progress_report_id)->toBeNull()
+        ->and($draft->fresh()->report_obligation_id)->toBe($obligation->id);
 });
 
 it('says nothing about an obligation that has already been filed or waived', function (string $state) {

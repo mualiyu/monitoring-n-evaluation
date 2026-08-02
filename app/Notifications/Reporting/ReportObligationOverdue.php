@@ -3,6 +3,7 @@
 namespace App\Notifications\Reporting;
 
 use App\Models\ReportObligation;
+use App\Support\InstanceTime;
 use App\Support\SurfaceUrl;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -45,7 +46,8 @@ class ReportObligationOverdue extends Notification
                 'period' => $period->label,
                 'title' => $title,
                 'reference' => $reference,
-                'due' => $this->obligation->due_at->toDayDateTimeString(),
+                // The instance's wall clock, not UTC — see ReportObligationDueSoon.
+                'due' => InstanceTime::local($this->obligation->due_at)->translatedFormat('j M Y, H:i'),
             ]))
             ->line(__('Please file it — a late return still counts; a missing one does not.'))
             ->action(__('Open the workspace'), SurfaceUrl::base($this->obligation->tenant));

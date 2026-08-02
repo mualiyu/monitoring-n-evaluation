@@ -57,6 +57,25 @@ class NotifyProgressReportChain implements ShouldQueue
         }
 
         $to = ProgressReportStatus::from($this->toStatus);
+
+        // THE ROW IS THE AUTHORITY, NOT THE CONSTRUCTOR ARGUMENT. The dispatch
+        // happens inside the writing transaction (TransitionProgressReportStatus
+        // fires it after its own commit, but ApproveProgressReport wraps that in
+        // an outer transaction), so a step that is rolled back afterwards has
+        // already queued its mail. Approval is where that bites: the propagation
+        // to the project runs after the transition and can refuse — a certified
+        // project's record is frozen — which rolls the approval back entirely.
+        // Trusting $this->toStatus would then tell the author and the project
+        // manager that a return was approved when the database says it is still
+        // awaiting a decision, and nobody would ever correct that mail.
+        //
+        // Re-reading costs one query and makes the job idempotent under replay
+        // as well. The trade-off is deliberate: a step the chain has since moved
+        // past goes unannounced rather than announced wrongly — and by then the
+        // move that superseded it has sent its own notification anyway.
+        if ($report->status !== $to) {
+            return;
+        }
         $recipients = $this->recipientsFor($report, $to)
             // The actor knows what they just did; telling them is noise, and
             // noise is how people learn to ignore this channel.

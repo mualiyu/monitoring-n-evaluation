@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ReportObligationStatus;
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\InstanceTime;
 use Carbon\CarbonImmutable;
 use Database\Factories\ReportObligationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -125,12 +126,20 @@ class ReportObligation extends Model
      * hours: "due in 3 days" has to mean the same thing to a deadline at 23:59
      * as to one at 09:00, or the ladder fires a day early for half the
      * calendar.
+     *
+     * Counted on the INSTANCE's calendar, not UTC's: an officer in Lagos at
+     * 00:30 is on the next day, and a countdown that still says "due today"
+     * because UTC has not turned over yet is telling them the deadline has not
+     * passed when it has.
      */
     public function daysToDue(?CarbonImmutable $asOf = null): int
     {
         $asOf ??= CarbonImmutable::now();
 
-        return (int) $asOf->startOfDay()->diffInDays($this->due_at->startOfDay(), false);
+        $today = InstanceTime::local($asOf)->startOfDay();
+        $deadline = InstanceTime::local($this->due_at)->startOfDay();
+
+        return (int) $today->diffInDays($deadline, false);
     }
 
     /**

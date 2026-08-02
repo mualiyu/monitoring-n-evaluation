@@ -2,6 +2,7 @@
 
 namespace App\Enums;
 
+use App\Support\InstanceTime;
 use Carbon\CarbonImmutable;
 
 /**
@@ -14,6 +15,13 @@ use Carbon\CarbonImmutable;
  * quarter in every state). Due DATES do not — they are configurable policy and
  * are computed in App\Actions\Reporting\GenerateReportingPeriods from the
  * `platform.reporting` settings.
+ *
+ * ⚠ THE BOUNDARIES ARE INSTANCE-LOCAL, NOT UTC. "March starts on the 1st" is a
+ * statement about the state's wall clock, so both methods return a
+ * CarbonImmutable in App\Support\InstanceTime::zone(). A caller writing a DATE
+ * column (`period_start`, `period_end`) stores it as-is — the calendar date is
+ * the fact. A caller writing a DATETIME column (`opens_at`, `due_at`,
+ * `closes_at`) converts to UTC first, because those are instants.
  */
 enum ReportingCadence: string
 {
@@ -34,7 +42,8 @@ enum ReportingCadence: string
     }
 
     /**
-     * First day of window $ordinal (1-based) of $year.
+     * First day of window $ordinal (1-based) of $year, at midnight on the
+     * instance's wall clock.
      */
     public function startOfPeriod(int $year, int $ordinal): CarbonImmutable
     {
@@ -48,11 +57,12 @@ enum ReportingCadence: string
         // createStrict, not create(): the latter returns null for an
         // impossible date, and a nullable calendar boundary would leak a
         // "maybe" into every deadline computed from it.
-        return CarbonImmutable::createStrict($year, $month, 1)->startOfDay();
+        return CarbonImmutable::createStrict($year, $month, 1, 0, 0, 0, InstanceTime::zone())->startOfDay();
     }
 
     /**
-     * Last day of window $ordinal (1-based) of $year.
+     * Last day of window $ordinal (1-based) of $year, at the last instant of
+     * that day on the instance's wall clock.
      */
     public function endOfPeriod(int $year, int $ordinal): CarbonImmutable
     {

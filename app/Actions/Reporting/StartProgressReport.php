@@ -42,6 +42,16 @@ class StartProgressReport
     ): ProgressReport {
         Gate::forUser($actor)->authorize('create', ProgressReport::class);
 
+        // …and on THIS project. `reports.create` says a consultant may file
+        // returns; it does not say which projects are theirs. ProjectPolicy@view
+        // asks Project::scopeVisibleTo — the single definition of project
+        // visibility — so a consultant naming a project they are not assigned
+        // to, or one belonging to a workspace they merely have a URL for, is
+        // refused HERE rather than only by the wizard's option list. The screen
+        // validating against what it offers is a good screen; it is not a
+        // control, because a Livewire endpoint takes any payload.
+        Gate::forUser($actor)->authorize('view', $project);
+
         $this->assertReportable($project);
 
         return DB::transaction(function () use ($project, $period, $actor, $contractor, $entryMode): ProgressReport {

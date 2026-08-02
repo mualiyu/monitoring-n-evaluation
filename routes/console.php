@@ -26,6 +26,11 @@ Artisan::command('inspire', function () {
 | same minute from two different windows.
 */
 
+// December, for the year AFTER next January — the command with no --year
+// builds the current year and the next one, so the calendar is a month deep
+// before it is ever needed. A run that produced only the current year would
+// leave 1 January with no open window: no obligations, no reminders, and a
+// deadline engine that has gone quiet without failing.
 Schedule::command('reporting:generate-periods')
     ->yearlyOn(12, 1, '00:10')
     ->withoutOverlapping();

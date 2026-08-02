@@ -53,10 +53,16 @@ it('computes every statutory due date from the digest rules', function (string $
     ($this->generatePeriods)(2026);
 
     $period = ReportingPeriod::query()->where('code', $code)->firstOrFail();
+    $zone = config('platform.instance.timezone');
 
     expect($period->period_start->toDateString())->toBe($start)
         ->and($period->period_end->toDateString())->toBe($end)
-        ->and($period->due_at->toDateString())->toBe($due);
+        // Read on the STATE's clock, which is the clock the deadline was
+        // legislated on: the return is due at the last moment of the due date,
+        // not at 23:59 UTC (which in Africa/Lagos is the following morning).
+        ->and($period->due_at->timezone($zone)->toDateTimeString())->toBe($due.' 23:59:59')
+        // …and the window opens at midnight of its first day, likewise local.
+        ->and($period->opens_at->timezone($zone)->toDateTimeString())->toBe($start.' 00:00:00');
 })->with([
     // monthly: period_end + 7 days
     'March 2026' => ['2026-M03', '2026-03-01', '2026-03-31', '2026-04-07'],
@@ -76,6 +82,71 @@ it('creates no duplicates when the calendar command runs twice', function () {
     ($this->generatePeriods)(2026);
 
     expect(ReportingPeriod::query()->count())->toBe(19);
+});
+
+it('stores the deadline as the UTC instant of the state’s end of day, not of UTC’s', function () {
+    // The instance runs on Africa/Lagos (UTC+1) by default, so the last moment
+    // of 7 April in the state is 22:59:59 UTC — an hour BEFORE UTC's own end of
+    // day. Storing 23:59:59 UTC would give every MDA a free extra hour and put
+    // the desk's countdown and the overdue sweep an hour out of step with each
+    // other for that hour, every single deadline.
+    ($this->generatePeriods)(2026);
+
+    $march = ReportingPeriod::query()->where('code', '2026-M03')->firstOrFail();
+
+    expect($march->due_at->utc()->toDateTimeString())->toBe('2026-04-07 22:59:59')
+        ->and($march->opens_at->utc()->toDateTimeString())->toBe('2026-02-28 23:00:00');
+});
+
+it('follows the instance timezone rather than assuming one', function () {
+    // White-label: an instance in a UTC-0 state gets UTC-0 boundaries from the
+    // same code, because the zone is configuration and never a literal.
+    config()->set('platform.instance.timezone', 'UTC');
+
+    ($this->generatePeriods)(2026);
+
+    $march = ReportingPeriod::query()->where('code', '2026-M03')->firstOrFail();
+
+    expect($march->due_at->utc()->toDateTimeString())->toBe('2026-04-07 23:59:59')
+        ->and($march->opens_at->utc()->toDateTimeString())->toBe('2026-03-01 00:00:00');
+});
+
+/* -------------------------------------------------------------------------- */
+/* The command */
+/* -------------------------------------------------------------------------- */
+
+it('generates this year AND next when the command is run with no year', function () {
+    // The regression this guards is a silent one. The cron fires on 1 December;
+    // a run that produced only the current year would rebuild windows everyone
+    // has already reported against and create nothing for January. On New
+    // Year's Day the obligation sweep would find no open window, no reminder
+    // would go out, and the deadline engine would go quiet without failing.
+    $this->artisan('reporting:generate-periods')
+        ->assertSuccessful();
+
+    expect(ReportingPeriod::query()->count())->toBe(38)
+        ->and(ReportingPeriod::query()->where('code', '2026-M03')->exists())->toBeTrue()
+        ->and(ReportingPeriod::query()->where('code', '2027-M01')->exists())->toBeTrue()
+        ->and(ReportingPeriod::query()->where('code', '2027-A')->exists())->toBeTrue();
+});
+
+it('still generates exactly one year when the command is given one', function () {
+    $this->artisan('reporting:generate-periods', ['--year' => 2030])
+        ->assertSuccessful();
+
+    expect(ReportingPeriod::query()->count())->toBe(19)
+        ->and(ReportingPeriod::query()->where('code', '2030-M01')->exists())->toBeTrue();
+});
+
+it('converges rather than duplicating when the scheduled command runs two Decembers running', function () {
+    $this->artisan('reporting:generate-periods')->assertSuccessful();
+
+    // A year later the overlap — 2027 — is upserted, not re-created.
+    $this->travelTo(Carbon::parse('2027-12-01 00:10:00'));
+    $this->artisan('reporting:generate-periods')->assertSuccessful();
+
+    expect(ReportingPeriod::query()->count())->toBe(57)   // 2026, 2027, 2028
+        ->and(ReportingPeriod::query()->where('code', '2027-M03')->count())->toBe(1);
 });
 
 it('reads the due-day offsets from settings rather than from literals', function () {

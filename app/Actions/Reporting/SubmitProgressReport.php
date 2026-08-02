@@ -6,6 +6,7 @@ use App\Actions\Oversight\BuildComplianceLeagueTable;
 use App\Enums\ProgressReportStatus;
 use App\Enums\ReportObligationStatus;
 use App\Models\ProgressReport;
+use App\Models\ReportObligation;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -52,7 +53,7 @@ class SubmitProgressReport
      */
     private function fulfilObligation(ProgressReport $report): void
     {
-        $obligation = $report->loadMissing('obligation')->obligation;
+        $obligation = $this->obligationFor($report);
 
         if ($obligation === null || $obligation->status === ReportObligationStatus::Waived) {
             return;
@@ -71,5 +72,45 @@ class SubmitProgressReport
         // forceFill: the compliance columns are deliberately not fillable, so
         // this Action and WaiveReportObligation are the only writers.
         $obligation->forceFill($changes)->save();
+    }
+
+    /**
+     * The obligation this return answers — by its stored link, or failing that
+     * by the (window, project) pair the return is FOR.
+     *
+     * THE FALLBACK IS NOT DEFENSIVE, it closes a real hole. A draft started
+     * before the nightly sweep has run — an eager consultant on the first
+     * morning of a window, or any project whose status became reportable after
+     * the sweep — is created with `report_obligation_id` null, because there was
+     * no obligation to point at. The sweep then raises one. Matching only on
+     * the stored id would leave that obligation pending forever: the MDA is
+     * chased for a return it has already filed, escalated to the secretariat,
+     * and scored as a miss on the league table.
+     *
+     * The link is backfilled so the row and the return agree from here on.
+     */
+    private function obligationFor(ProgressReport $report): ?ReportObligation
+    {
+        $obligation = $report->loadMissing('obligation')->obligation;
+
+        if ($obligation !== null) {
+            return $obligation;
+        }
+
+        $obligation = ReportObligation::query()
+            ->where('reporting_period_id', $report->reporting_period_id)
+            ->where('project_id', $report->project_id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($obligation === null) {
+            return null;
+        }
+
+        $report->report_obligation_id = $obligation->id;
+        $report->save();
+        $report->setRelation('obligation', $obligation);
+
+        return $obligation;
     }
 }

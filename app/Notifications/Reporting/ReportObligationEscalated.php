@@ -3,6 +3,7 @@
 namespace App\Notifications\Reporting;
 
 use App\Models\ReportObligation;
+use App\Support\InstanceTime;
 use App\Support\SurfaceUrl;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -51,7 +52,8 @@ class ReportObligationEscalated extends Notification
                 'title' => $title,
                 'reference' => $reference,
                 'period' => $period->label,
-                'due' => $this->obligation->due_at->toDayDateTimeString(),
+                // The instance's wall clock, not UTC — see ReportObligationDueSoon.
+                'due' => InstanceTime::local($this->obligation->due_at)->translatedFormat('j M Y, H:i'),
             ]))
             ->line(__('This obligation has been escalated to you because it remains unmet :days day(s) after the deadline.', [
                 'days' => $this->daysLate,

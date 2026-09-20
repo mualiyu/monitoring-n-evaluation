@@ -6,6 +6,7 @@ use App\Livewire\Tenant\Iam\TeamIndex;
 use App\Livewire\Tenant\Projects\ContractorIndex;
 use App\Livewire\Tenant\Projects\ProjectCreate;
 use App\Livewire\Tenant\Projects\ProjectDetail;
+use App\Livewire\Tenant\Projects\ProjectEdit;
 use App\Livewire\Tenant\Projects\ProjectIndex;
 use App\Livewire\Tenant\Reporting\ReportForm;
 use App\Livewire\Tenant\Reporting\ReportIndex;
@@ -22,6 +23,20 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::middleware(['auth', 'active', 'tenant.member', '2fa.require'])->group(function () {
+    /*
+    | Domain module route files. Each module owns routes/tenant/<module>.php
+    | and drops it into the folder; nothing has to be wired by hand here, so
+    | two modules never contend for this file.
+    |
+    | They are required FIRST, deliberately: the router walks same-path routes
+    | in registration order, and a literal segment registered after a sibling
+    | wildcard (e.g. /reports/inbox after /reports/{report}) binds as a model
+    | key and 404s. Literal-before-wildcard is the only safe order.
+    */
+    foreach (glob(__DIR__.'/tenant/*.php') ?: [] as $moduleRoutes) {
+        require $moduleRoutes;
+    }
+
     Route::get('/', function () {
         return view('tenant.dashboard');
     })->name('dashboard');
@@ -42,6 +57,10 @@ Route::middleware(['auth', 'active', 'tenant.member', '2fa.require'])->group(fun
     Route::get('/projects', ProjectIndex::class)->name('projects.index');
     Route::get('/projects/create', ProjectCreate::class)->name('projects.create');
     Route::get('/projects/{project}', ProjectDetail::class)->name('projects.show');
+    // The detail header and the index row menu have always offered "Edit
+    // details"; without this route both 404'd. `{project}` resolves by ULID
+    // through the TenantScope, so another MDA's public id is a 404, not a leak.
+    Route::get('/projects/{project}/edit', ProjectEdit::class)->name('projects.edit');
 
     Route::get('/contractors', ContractorIndex::class)->name('contractors.index');
 

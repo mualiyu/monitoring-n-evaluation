@@ -16,6 +16,7 @@ use App\Models\Sector;
 use App\Models\TenantMembership;
 use App\Models\User;
 use App\Models\Ward;
+use App\Support\Money;
 use App\Tenancy\CurrentTenant;
 use Closure;
 use Illuminate\Support\Collection;
@@ -245,12 +246,12 @@ class ProjectCreate extends Component
                 'supervising_agency_name' => ['nullable', 'string', 'max:255'],
             ],
             2 => [
-                'budget_allocation' => ['nullable', 'numeric', 'min:0', 'max:9999999999999.99'],
+                'budget_allocation' => ['nullable', 'numeric', Money::FORM_RULE, 'min:0', 'max:9999999999999.99'],
                 'budget_code' => ['nullable', 'string', 'max:60'],
                 'funding' => ['array'],
                 'funding.*.funding_source_id' => ['nullable', 'distinct', Rule::exists('funding_sources', 'id')],
                 'funding.*.percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
-                'funding.*.amount' => ['nullable', 'numeric', 'min:0'],
+                'funding.*.amount' => ['nullable', 'numeric', Money::FORM_RULE, 'min:0'],
             ],
             default => [
                 'site_name' => ['nullable', 'string', 'max:255'],

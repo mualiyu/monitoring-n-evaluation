@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Actions\Iam\AssignRole;
+use App\Actions\Iam\ExemptFromTwoFactor;
 use App\Actions\Iam\GrantTenantAccess;
 use App\Enums\Role;
 use App\Enums\TenantType;
@@ -40,6 +41,14 @@ class DemoTenantSeeder extends Seeder
                 $role,
             );
         }
+
+        // The Super Admin has no 2FA grace, so a fresh demo would land on the
+        // setup wizard before anything else. Release the demo operator from
+        // the mandate (console context, no actor); the other admin-role demo
+        // accounts keep their grace window so the countdown banner and the
+        // forced-enrolment path stay demonstrable.
+        $platformAdmin = User::where('email', 'admin@mne.test')->firstOrFail();
+        (new ExemptFromTwoFactor)(null, $platformAdmin);
 
         $tenants = [
             ['name' => 'Ministry of Works & Infrastructure', 'slug' => 'works', 'type' => TenantType::Ministry],

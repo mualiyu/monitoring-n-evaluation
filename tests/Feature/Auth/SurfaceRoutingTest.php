@@ -7,9 +7,12 @@
  * subdomain.
  */
 
+use App\Enums\Role;
 use App\Http\Middleware\ResolveTenant;
 use App\Models\Tenant;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Livewire\Mechanisms\HandleRequests\HandleRequests;
 
 beforeEach(function () {
     $this->tenant = Tenant::factory()->create(['name' => 'Ministry of Works', 'slug' => 'works']);
@@ -99,6 +102,58 @@ it('gives every surface its own livewire update route so component calls keep th
         ->and($portalRoute->methods())->toContain('POST');
 
     expect($tenantRoute->gatherMiddleware())->toContain(ResolveTenant::class);
+});
+
+/*
+| The three assertions above prove the routes EXIST with the right domains.
+| They passed while every oversight component update 404'd, because existence
+| is not dispatch: the router walks same-path routes in registration order and
+| '{tenant}.<domain>' matches any single-label host, so a wildcard registered
+| first swallows 'oversight.' and ResolveTenant 404s it as a reserved slug.
+| These cases pin the resolution itself, per host.
+*/
+it('dispatches each host to its own livewire update route', function (string $host, string $expected) {
+    $request = Request::create(
+        'http://'.$host.'.'.config('platform.domain').app(HandleRequests::class)->getUpdateUri(),
+        'POST',
+    );
+
+    $matched = Route::getRoutes()->match($request);
+
+    expect($matched->getName())->toBe($expected);
+})->with([
+    'oversight host' => ['oversight', 'oversight.livewire-update'],
+    'tenant host' => ['works', 'tenant.livewire-update'],
+]);
+
+it('completes a real livewire round trip on the oversight host', function () {
+    seedPermissions();
+
+    $admin = userWithRole(Role::StateAdmin);
+    $this->actingAs($admin);
+
+    // Drive it the way the browser does: render the screen, take the snapshot
+    // the client would hold, and post it back to the update endpoint. Nothing
+    // here is a Livewire internal — Livewire::test() bypasses HTTP entirely,
+    // which is exactly why the 404 survived a green suite.
+    $page = $this->get(oversightUrl('/users'))->assertOk();
+
+    expect($page->getContent())->toContain('wire:snapshot');
+
+    preg_match('/wire:snapshot="([^"]+)"/', (string) $page->getContent(), $matches);
+
+    $snapshot = html_entity_decode($matches[1] ?? '', ENT_QUOTES);
+
+    $response = $this->postJson(
+        oversightUrl(app(HandleRequests::class)->getUpdateUri()),
+        ['components' => [['snapshot' => $snapshot, 'updates' => [], 'calls' => []]]],
+        ['X-Livewire' => '1'],
+    );
+
+    // A 404 here is the wildcard-capture regression: the tenant route would
+    // have swallowed this host and ResolveTenant would reject 'oversight' as
+    // a reserved slug.
+    $response->assertOk()->assertJsonStructure(['components']);
 });
 
 it('registers no domain-less livewire update route that would bypass tenant resolution', function () {

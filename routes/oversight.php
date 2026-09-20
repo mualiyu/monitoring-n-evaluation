@@ -26,6 +26,14 @@ Route::middleware([
     'role:super-admin|state-admin|executive-viewer|data-quality-reviewer',
     '2fa.require',
 ])->group(function () {
+    /*
+    | Domain module route files — see the note in routes/tenant.php. Required
+    | first so literal segments beat the sibling wildcards declared below.
+    */
+    foreach (glob(__DIR__.'/oversight/*.php') ?: [] as $moduleRoutes) {
+        require $moduleRoutes;
+    }
+
     Route::get('/', function () {
         return view('oversight.dashboard');
     })->name('dashboard');

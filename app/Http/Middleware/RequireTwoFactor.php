@@ -13,6 +13,11 @@ use Symfony\Component\HttpFoundation\Response;
  * every request — including sessions predating the policy and users promoted
  * mid-session. Grace runs from users.two_factor_required_at (stamped by
  * AssignRole); SuperAdmin gets no grace.
+ *
+ * An account carrying two_factor_exempted_at (written only by the audited
+ * ExemptFromTwoFactor action) is released from the mandate entirely: it is
+ * never redirected, never shown the countdown, and the setup page treats it
+ * as a voluntary visitor.
  */
 class RequireTwoFactor
 {
@@ -25,7 +30,11 @@ class RequireTwoFactor
     {
         $user = $request->user();
 
-        if ($user === null || $user->two_factor_confirmed_at !== null) {
+        if (
+            $user === null
+            || $user->two_factor_confirmed_at !== null
+            || $user->two_factor_exempted_at !== null
+        ) {
             return $next($request);
         }
 

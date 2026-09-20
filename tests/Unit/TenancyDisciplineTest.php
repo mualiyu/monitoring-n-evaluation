@@ -53,6 +53,13 @@ const TENANCY_DISCIPLINE_RULES = [
     'saveQuietly(' => [],
     'insertQuietly(' => [],
     'insertGetId(' => [],
+    // Model::fresh() is newQueryWithoutScopes(), so it re-loads a row with the
+    // TenantScope OFF — an unscoped cross-tenant read wearing innocuous
+    // clothing. It shipped twice (the project edit screen and the report
+    // review refresh), safe both times only because an authorize() happened to
+    // run first. Re-query through the model instead:
+    // `Model::query()->whereKey($m->getKey())->firstOrFail()` fails closed.
+    '->fresh(' => [],
 ];
 
 function tenancyDisciplineViolations(): array

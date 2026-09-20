@@ -134,9 +134,76 @@ class PermissionSeeder extends Seeder
             'reports.approve' => [RoleEnum::SuperAdmin, RoleEnum::MdaAdmin],
             'reports.waive' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, RoleEnum::MdaAdmin],
 
+            // Indicator readings & the results framework (Phase 2). Recording
+            // an actual is delivery work; VALIDATING one is assurance, so the
+            // two never sit with the same person — the Data Quality Reviewer
+            // role exists precisely to break that loop (plan §2). Publishing
+            // is narrower still: it is what makes a figure quotable outside
+            // the platform.
+            'frameworks.view' => [...$oversight, ...$mdaStaff, RoleEnum::Consultant],
+            'frameworks.manage' => [RoleEnum::SuperAdmin, ...$mdaStaff],
+            'indicators.readings.record' => [RoleEnum::SuperAdmin, ...$mdaStaff, RoleEnum::Consultant],
+            'indicators.readings.submit' => [RoleEnum::SuperAdmin, ...$mdaStaff, RoleEnum::Consultant],
+            'indicators.readings.validate' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, RoleEnum::DataQualityReviewer],
+            'indicators.readings.publish' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin],
+            'indicators.library.manage' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin],
+
+            // Monitoring lifecycle (Phase 2). A FieldMonitor conducts and
+            // files an inspection but never reviews one — the inspector is
+            // not the assurance over their own field work.
+            'commencement.view' => [...$oversight, ...$mdaStaff, ...$field],
+            'commencement.issue' => [RoleEnum::SuperAdmin, ...$mdaStaff],
+            'inspections.view' => [...$oversight, ...$mdaStaff, ...$field],
+            'inspections.schedule' => [RoleEnum::SuperAdmin, ...$mdaStaff],
+            'inspections.conduct' => [RoleEnum::SuperAdmin, ...$mdaStaff, RoleEnum::FieldMonitor],
+            'inspections.review' => [RoleEnum::SuperAdmin, ...$mdaStaff],
+            'certificates.view' => [...$oversight, ...$mdaStaff, ...$field],
+            'certificates.issue' => [RoleEnum::SuperAdmin, RoleEnum::MdaAdmin],
+
+            // Challenges register + exception reports. Raising is wide on
+            // purpose: the manual's whole point is that the person who SEES
+            // the problem records it, including the contractor.
+            'issues.view' => [...$oversight, ...$mdaStaff, ...$field],
+            'issues.create' => [RoleEnum::SuperAdmin, ...$mdaStaff, ...$field],
+            'issues.update' => [RoleEnum::SuperAdmin, ...$mdaStaff],
+            'issues.resolve' => [RoleEnum::SuperAdmin, ...$mdaStaff],
+            'issues.close' => [RoleEnum::SuperAdmin, RoleEnum::MdaAdmin],
+            'exceptions.view' => [...$oversight, ...$mdaStaff, ...$field],
+            'exceptions.create' => [RoleEnum::SuperAdmin, ...$mdaStaff, ...$field],
+            'exceptions.resolve' => [RoleEnum::SuperAdmin, ...$mdaStaff],
+
+            // Annual work plans (manual §5): each activity hangs off an output
+            // indicator, so managing a plan is the same authority as managing
+            // the framework it reports into. Approval is the director's.
+            'workplans.view' => [...$oversight, ...$mdaStaff, ...$field],
+            'workplans.manage' => [RoleEnum::SuperAdmin, ...$mdaStaff],
+            'workplans.approve' => [RoleEnum::SuperAdmin, RoleEnum::MdaAdmin],
+
+            // Evaluations + the recommendations follow-up register. The
+            // secretariat commissions evaluations of MDAs, so StateAdmin holds
+            // management rights here that it does not hold over an MDA's own
+            // delivery records.
+            'evaluations.view' => [...$oversight, ...$mdaStaff],
+            'evaluations.manage' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, ...$mdaStaff],
+            'evaluations.approve' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, RoleEnum::MdaAdmin],
+            'recommendations.view' => [...$oversight, ...$mdaStaff],
+            'recommendations.manage' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, ...$mdaStaff],
+
             // Oversight
             'oversight.portfolio.view' => $oversight,
             'oversight.compliance.view' => $oversight,
+            // The cross-MDA reports desk and the consolidation workspace.
+            // Consolidation WRITES a state artifact, so it is secretariat-only
+            // while reading the desk is open to every oversight role.
+            'oversight.reports.view' => $oversight,
+            'oversight.consolidation.manage' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin],
+            'oversight.validation.review' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, RoleEnum::DataQualityReviewer],
+            'oversight.audit.view' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin],
+            // Provisioning an MDA workspace is platform administration: it
+            // creates a subdomain and a permission team, not a record.
+            'tenants.view' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, RoleEnum::ExecutiveViewer],
+            'tenants.manage' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin],
+            'settings.manage' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, RoleEnum::MdaAdmin],
 
             // Users & workspace membership (auth-surfaces.md §2–3). These
             // decide who may SEE and OPERATE the member-management screens;

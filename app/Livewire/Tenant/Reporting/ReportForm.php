@@ -14,6 +14,7 @@ use App\Models\Project;
 use App\Models\ReportingPeriod;
 use App\Models\ReportObligation;
 use App\Models\User;
+use App\Support\Money;
 use App\Support\SettingsRepository;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -241,7 +242,7 @@ class ReportForm extends Component
             2 => [
                 'narrative_work_done' => ['required', 'string', 'min:20', 'max:5000'],
                 'physical_progress_claimed' => ['required', 'numeric', 'between:0,100'],
-                'period_expenditure' => ['required', 'numeric', 'min:0', 'max:9999999999999.99'],
+                'period_expenditure' => ['required', 'numeric', Money::FORM_RULE, 'min:0', 'max:9999999999999.99'],
                 // Mirrors the Action's guard so the officer learns about it on
                 // the step that caused it, not three screens later. The Action
                 // still enforces it for every other caller.

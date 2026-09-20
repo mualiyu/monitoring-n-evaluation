@@ -5,7 +5,11 @@
     Props
       name, id
       options      ['value' => 'Label'] or [['value' => …, 'label' => …], …] or a
-                   plain list of strings
+                   plain list of strings. An id-keyed map (->pluck('name','id'))
+                   is the first form — its keys become the option values.
+                   Call ->values() on anything you ->filter(): a gappy integer
+                   -keyed array is not a list and not a map, and its indices
+                   would be rendered as the values.
       selected     current value (ignored when using wire:model)
       placeholder  renders a disabled first option, e.g. "All MDAs"
       hasHint, describedBy — see <x-ui.form.input>
@@ -32,12 +36,28 @@
         $describedBy,
     ]);
 
-    $normalised = collect($options)->map(function ($label, $key) {
+    /*
+        A plain list (['Draft', 'Submitted']) uses each entry as both value and
+        label. An associative map uses the KEY as the value — and that includes
+        id-keyed maps like ->pluck('name', 'id'), whose keys are integers.
+
+        Telling those apart needs array_is_list(), NOT is_int($key): an id-keyed
+        map has integer keys too, so an is_int() test classified every record
+        picker as a plain list and rendered the NAME as the option value. Every
+        select that picks a row by id then submitted a label where an id was
+        expected, and the field failed `exists` validation ("The selected sector
+        is invalid"). array_is_list() is exact — a list's keys are 0..n-1 — and
+        `$table->id()` starts at 1, so a plucked map is never mistaken for one.
+    */
+    $entries = $options instanceof \Illuminate\Support\Collection ? $options->all() : (array) $options;
+    $isPlainList = array_is_list($entries);
+
+    $normalised = collect($entries)->map(function ($label, $key) use ($isPlainList) {
         if (is_array($label)) {
             return ['value' => $label['value'] ?? '', 'label' => $label['label'] ?? ''];
         }
 
-        return ['value' => is_int($key) ? $label : $key, 'label' => $label];
+        return ['value' => $isPlainList ? $label : $key, 'label' => $label];
     })->values();
 @endphp
 

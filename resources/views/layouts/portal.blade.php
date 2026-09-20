@@ -52,7 +52,7 @@
 
     <header x-data="{ menuOpen: false }" class="sticky top-0 z-30 border-b border-line bg-surface-raised/90 backdrop-blur">
         <div class="mx-auto flex h-16 w-full max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
-            <x-ui.brand :tenant="$tenant" href="#" :subtitle="__('Public project transparency')" class="flex-1" />
+            <x-ui.brand :tenant="$tenant" :href="url('/')" :subtitle="__('Public project transparency')" class="flex-1" />
 
             <nav aria-label="{{ __('Portal navigation') }}" class="hidden items-center gap-1 md:flex">
                 @foreach ($portalNav as $link)

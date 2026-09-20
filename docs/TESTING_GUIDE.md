@@ -19,7 +19,7 @@ Reset the demo state anytime with `php artisan migrate:fresh --seed`.
 ### Oversight — sign in at http://oversight.mne.test/login
 | Email | Role | 2FA behaviour |
 |---|---|---|
-| `admin@mne.test` | Super Admin | **Forced into 2FA setup immediately** (zero grace — by policy) |
+| `admin@mne.test` | Super Admin | **Exempt from 2FA setup** (seeded via `ExemptFromTwoFactor`; the role itself has zero grace) |
 | `state@mne.test` | State M&E Director | 7-day grace: dashboard works, countdown banner shows |
 | `governor@mne.test` | Executive Viewer | 2FA optional |
 
@@ -51,10 +51,14 @@ Same pattern: `mda-admin@health.mne.test`, `me-officer@health.mne.test`,
    `consultant@works.mne.test`: authentication succeeds but you get 403 — a tenant
    role grants nothing on the oversight surface. Then try `state@mne.test` — you get
    the denser oversight shell with the "State-level oversight" chip.
-5. **Mandatory 2FA** — sign in at oversight as `admin@mne.test`: you are hard-redirected
-   to the 3-step 2FA wizard (Super Admin has no grace). Walk it with Google/Microsoft
-   Authenticator: QR scan (or manual secret), code confirm, recovery codes with
-   copy/download. Sign out and back in → TOTP challenge appears.
+5. **Mandatory 2FA** — the demo Platform Admin is exempt, so `admin@mne.test` lands on
+   the dashboard. To see the forced path, lift the exemption in `php artisan tinker`:
+   `(new App\Actions\Iam\ExemptFromTwoFactor)(null, App\Models\User::where('email','admin@mne.test')->first(), false);`
+   then sign in at oversight: you are hard-redirected to the 3-step 2FA wizard (Super
+   Admin has no grace). Walk it with Google/Microsoft Authenticator: QR scan (or manual
+   secret), code confirm, recovery codes with copy/download. Sign out and back in → TOTP
+   challenge appears. The wizard is also reachable voluntarily at `/two-factor/setup`
+   while exempt.
 6. **2FA grace banner** — sign in at works as `mda-admin@works.mne.test`: dashboard
    works, but a "setup required by {date}" banner shows (7-day grace from role grant).
 7. **Workspace switcher** — http://works.mne.test/workspaces lists every workspace your
@@ -74,7 +78,20 @@ Same pattern: `mda-admin@health.mne.test`, `me-officer@health.mne.test`,
     redirects to http://mne.test/forgot-password (deliberate: reset links are built in
     queue workers and must have one deterministic host). Reset mail also lands in the
     log/Mailpit.
-11. **Seeded project data** (no screens yet — Actions layer + UI are the next slice):
+11. **Register a project** — http://works.mne.test/projects/create as
+    `mda-admin@works.mne.test` or `me-officer@works.mne.test`. Three steps;
+    every dropdown (sector, funding source, LGA, ward, manager) submits the
+    row's id. A consultant gets 403 here by design. The dashboard's "Register
+    project" button is the shortcut into it.
+12. **Edit a project** — open any project, then "Edit details" in the header
+    (or the row menu on the index). One page, three panels. On a **certified**
+    project the scope, money and date fields render locked with the reason
+    stated, while the project manager and reporting frequency stay editable —
+    that is the certification freeze, not a bug.
+13. **Oversight portfolio drill-down** — http://oversight.mne.test/portfolio as
+    `state@mne.test`, then click an entity row. It lands on
+    `/portfolio/works`, keyed by slug.
+14. **Seeded project data** (Actions layer, via tinker):
     `php artisan tinker` →
     `App\Tenancy\CurrentTenant::class` … quickest look:
     `app(App\Tenancy\CurrentTenant::class)->runAs(App\Models\Tenant::where('slug','works')->first(), fn () => App\Models\Project::with('locations','contracts.contractor')->get(['id','title','status','physical_progress']))`
@@ -83,7 +100,8 @@ Same pattern: `mda-admin@health.mne.test`, `me-officer@health.mne.test`,
 
 ## Developer checks
 
-- `vendor/bin/pest` — 377 tests (tenancy isolation, auth matrix, state machine, money)
+- `vendor/bin/pest` — 858 tests (tenancy isolation, auth matrix, state machines,
+  money, rendered-form option values)
 - `vendor/bin/pint --test` + `php -d memory_limit=1G vendor/bin/phpstan analyse`
 - `php artisan migrate:fresh --seed` — rebuild the demo state
 - Emails: `storage/logs/laravel.log` (or Mailpit as in item 9)

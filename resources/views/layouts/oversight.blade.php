@@ -108,7 +108,7 @@
             class="fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] flex-col border-r border-line bg-surface-raised transition-transform duration-200 lg:translate-x-0! lg:max-w-none"
         >
             <div class="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-line px-3">
-                <x-ui.brand href="#" :subtitle="__('State-level oversight')" />
+                <x-ui.brand :href="url('/')" :subtitle="__('State-level oversight')" />
 
                 <button
                     type="button"

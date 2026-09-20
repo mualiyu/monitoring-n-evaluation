@@ -21,6 +21,21 @@ final readonly class Money implements Stringable
     /** Minor units per major unit (100 kobo = ₦1). */
     public const SCALE = 100;
 
+    /**
+     * Validation rule for a money amount TYPED INTO A FORM. Pair it with
+     * `numeric` (which keeps `min`/`max` numeric rather than string-length):
+     *
+     *     ['nullable', 'numeric', Money::FORM_RULE, 'min:0', 'max:...']
+     *
+     * `numeric` alone is not enough. `is_numeric('5.')` and
+     * `is_numeric('1e5')` are both true, while fromDecimalString() rejects
+     * them — so an officer typing a trailing dot passed validation and then
+     * got a 500 from the cast instead of a field error. Deliberately tighter
+     * than fromDecimalString() accepts: a form takes no signs, no thousands
+     * separators and no third decimal to round away.
+     */
+    public const FORM_RULE = 'regex:/^\d+(\.\d{1,2})?$/';
+
     /** Symbols for the currencies a deployment may be configured with. */
     private const SYMBOLS = [
         'NGN' => '₦',

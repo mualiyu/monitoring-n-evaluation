@@ -44,6 +44,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'is_active' => 'boolean',
             'last_login_at' => 'datetime',
             'two_factor_required_at' => 'datetime',
+            'two_factor_exempted_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
         ];
     }

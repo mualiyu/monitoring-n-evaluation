@@ -108,7 +108,7 @@
             class="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-line bg-surface-raised transition-transform duration-200 lg:translate-x-0! lg:max-w-none"
         >
             <div class="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-line px-4">
-                <x-ui.brand :tenant="$tenant" href="#" :subtitle="$workspaceLabel" />
+                <x-ui.brand :tenant="$tenant" :href="url('/')" :subtitle="$workspaceLabel" />
 
                 <button
                     type="button"
@@ -122,9 +122,11 @@
 
             @include('layouts.partials.sidebar-nav')
 
-            <div class="shrink-0 border-t border-line p-3">
-                <x-ui.nav-item icon="question-mark-circle" href="#">{{ __('Help & guidance') }}</x-ui.nav-item>
-            </div>
+            {{--
+                "Help & guidance" pointed at href="#" with no route behind it.
+                Dropped until there is a help screen to reach; a nav item that
+                does nothing is worse than one absent from the sidebar.
+            --}}
         </aside>
 
         <div class="lg:pl-72">

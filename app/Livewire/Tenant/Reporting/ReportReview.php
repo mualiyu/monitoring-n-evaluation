@@ -249,7 +249,14 @@ class ReportReview extends Component
 
     private function refreshReport(string $message): void
     {
-        $this->report = $this->report->fresh(['project', 'reportingPeriod', 'submittedBy', 'reviewedBy', 'approvedBy']);
+        // Re-queried through the model, not fresh(): fresh() is
+        // newQueryWithoutScopes(), so it reloads the row with the TenantScope
+        // OFF — an unscoped read in tenant-surface code. firstOrFail() under
+        // the scope fails closed instead. (Enforced by the discipline sweep.)
+        $this->report = ProgressReport::query()
+            ->with(['project', 'reportingPeriod', 'submittedBy', 'reviewedBy', 'approvedBy'])
+            ->whereKey($this->report->getKey())
+            ->firstOrFail();
 
         unset($this->chain);
 

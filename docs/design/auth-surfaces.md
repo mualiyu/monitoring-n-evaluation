@@ -262,6 +262,17 @@ guest-only, `throttle:10,1`, token never logged.
   user passes with a persistent countdown banner; outside it they are hard-redirected to setup.
   **Grace is 0 for `SuperAdmin`** — the platform operator enrols before anything else.
   Anchoring on the role grant (not `created_at`) is what makes promotion-mid-life work correctly.
+- **Exemption.** Column `users.two_factor_exempted_at`, written only by
+  `App\Actions\Iam\ExemptFromTwoFactor`: the actor needs global `users.manage` and may never act on
+  their own account; an actor-less call is the platform itself and is accepted only from the console
+  (seeders, artisan). A set value releases the account from the mandate — no redirect, no countdown,
+  setup page shown as a voluntary visit — and touches no second factor the user has enrolled.
+  Both directions are activity-logged. The demo seeder exempts the Platform Admin so a fresh install
+  does not open on the wizard; production exemptions are a deliberate, audited state-level act.
+  **Residual, accepted while there is no UI writer:** the exemption never expires, a StateAdmin can
+  strip the mandate from a SuperAdmin, and `UserDirectory` shows no exemption column — so it is
+  invisible on screen. Surface it as a chip and decide on an expiry before shipping any UI that
+  writes it.
 - **Recovery codes:** Fortify default (8, regenerable, shown once at confirmation, downloadable as
   `.txt`). Regeneration sits behind `password.confirm`. Log an activity entry on generation,
   regeneration and *use* of a code — a recovery-code login on an admin account is exactly the event

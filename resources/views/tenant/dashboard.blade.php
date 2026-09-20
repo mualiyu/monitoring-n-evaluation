@@ -26,8 +26,20 @@
         :description="__('Live picture of everything this entity is delivering, and what needs your attention this week.')"
     >
         <x-slot:actions>
-            <x-ui.button variant="secondary" size="sm" icon="arrow-down-tray">{{ __('Export portfolio') }}</x-ui.button>
-            <x-ui.button size="sm" icon="plus">{{ __('Register project') }}</x-ui.button>
+            {{--
+                Both of these were <button> elements with no href and no
+                wire:click, so they rendered as controls that did nothing when
+                clicked. "Register project" now goes to the wizard, gated on the
+                same permission the wizard itself enforces in mount(), so it is
+                never offered to someone who would get a 403. The export control
+                lives on the projects index next to the filters it exports, so
+                it is not duplicated here.
+            --}}
+            @can('create', \App\Models\Project::class)
+                <x-ui.button size="sm" icon="plus" :href="url('/projects/create')">
+                    {{ __('Register project') }}
+                </x-ui.button>
+            @endcan
         </x-slot:actions>
     </x-ui.page-header>
 
@@ -38,7 +50,14 @@
         </p>
     @endif
 
-    {{-- KPI row — placeholder figures until the Livewire widgets land. --}}
+    {{--
+        KPI row. The FIGURES are still placeholder literals — they are not read
+        from this workspace and must not be shown to a client as live data; the
+        real aggregates arrive with the summary-table widgets on the roadmap.
+        The LINKS are now real: every tile reaches the list that would explain
+        it (design system: "every metric card links to the drill-down"), where
+        they previously all pointed at href="#".
+    --}}
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <x-ui.stat
             :label="__('Active projects')"
@@ -47,15 +66,15 @@
             delta="+3"
             trend="up"
             intent="positive"
-            :hint="__('vs last quarter')"
-            href="#"
+            :hint="__('sample figure')"
+            :href="url('/projects')"
         />
         <x-ui.stat
             :label="__('Contract value monitored')"
             value="₦8.6bn"
             icon="banknotes"
-            :hint="__('across 24 active contracts')"
-            href="#"
+            :hint="__('sample figure')"
+            :href="url('/projects')"
         />
         <x-ui.stat
             :label="__('Reports awaiting review')"
@@ -64,8 +83,8 @@
             delta="+2"
             trend="up"
             intent="warning"
-            :hint="__('2 due this week')"
-            href="#"
+            :hint="__('sample figure')"
+            :href="url('/reports')"
         />
         <x-ui.stat
             :label="__('Overdue submissions')"
@@ -74,8 +93,8 @@
             delta="−2"
             trend="down"
             intent="positive"
-            :hint="__('down from 3 last month')"
-            href="#"
+            :hint="__('sample figure')"
+            :href="url('/reports')"
         />
     </div>
 

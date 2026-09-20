@@ -69,9 +69,17 @@
                 @foreach ($summary['tenants'] as $row)
                     <x-ui.table.row wire:key="portfolio-tenant-{{ $row['tenant_id'] }}">
                         <x-ui.table.cell :label="__('Entity')" primary>
-                            <a href="{{ url('/portfolio/'.$row['tenant_id']) }}" class="rounded hover:underline">
+                            {{-- The drill-down route binds {tenant:slug}, so it must be the
+                                 slug here and not the id — an id 404s. Guarded because
+                                 BuildPortfolioSummary leaves slug null when the tenant row
+                                 has gone (same guard as the compliance board). --}}
+                            @if ($row['slug'])
+                                <a href="{{ url('/portfolio/'.$row['slug']) }}" class="rounded hover:underline">
+                                    {{ $row['name'] ?? __('Unnamed entity') }}
+                                </a>
+                            @else
                                 {{ $row['name'] ?? __('Unnamed entity') }}
-                            </a>
+                            @endif
                         </x-ui.table.cell>
 
                         <x-ui.table.cell :label="__('Projects')" numeric>{{ number_format($row['project_count']) }}</x-ui.table.cell>
@@ -89,9 +97,11 @@
                         </x-ui.table.cell>
 
                         <x-ui.table.cell align="right">
-                            <x-ui.button variant="ghost" size="sm" trailing-icon="chevron-right" :href="url('/portfolio/'.$row['tenant_id'])">
-                                {{ __('Drill down') }}
-                            </x-ui.button>
+                            @if ($row['slug'])
+                                <x-ui.button variant="ghost" size="sm" trailing-icon="chevron-right" :href="url('/portfolio/'.$row['slug'])">
+                                    {{ __('Drill down') }}
+                                </x-ui.button>
+                            @endif
                         </x-ui.table.cell>
                     </x-ui.table.row>
                 @endforeach

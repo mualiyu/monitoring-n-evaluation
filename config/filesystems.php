@@ -38,6 +38,20 @@ return [
             'report' => false,
         ],
 
+        /*
+        | Government records: award letters, BOQs, GPS-stamped site photos,
+        | signed certificates. Private by construction — `serve` is off, so
+        | there is no framework route that can hand a file out; everything
+        | goes through the signed, permission-checked download route.
+        */
+        'documents' => [
+            'driver' => 'local',
+            'root' => storage_path('app/documents'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

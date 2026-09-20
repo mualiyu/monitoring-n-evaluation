@@ -53,9 +53,14 @@
     </div>
 
     <div class="pt-1">
-        <x-ui.dropdown.item icon="user-circle" href="#">{{ __('My profile') }}</x-ui.dropdown.item>
-        <x-ui.dropdown.item icon="bell" href="#">{{ __('Notification preferences') }}</x-ui.dropdown.item>
-        <x-ui.dropdown.item icon="shield-check" href="#">{{ __('Security & 2FA') }}</x-ui.dropdown.item>
+        {{--
+            Only entries with a screen behind them. "My profile" and
+            "Notification preferences" pointed at href="#" and had no route, so
+            they are omitted until those screens exist — an account menu that
+            does nothing when clicked reads as a broken app. Two-factor setup is
+            served on both app surfaces, so that one is a real link.
+        --}}
+        <x-ui.dropdown.item icon="shield-check" :href="url('/two-factor/setup')">{{ __('Security & 2FA') }}</x-ui.dropdown.item>
         <x-ui.dropdown.item icon="logout" destructive>{{ __('Sign out') }}</x-ui.dropdown.item>
     </div>
 </x-ui.dropdown>

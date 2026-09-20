@@ -24,6 +24,7 @@ use App\Models\ProjectLocation;
 use App\Models\ProjectStatusEvent;
 use App\Models\TenantMembership;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
@@ -269,7 +270,7 @@ class ProjectDetail extends Component
             'contractorId' => ['required', Rule::exists('contractors', 'id')],
             'contractNumber' => ['required', 'string', 'max:60'],
             'contractType' => ['required', Rule::enum(ContractType::class)],
-            'contractSum' => ['required', 'numeric', 'min:0.01', 'max:9999999999999.99'],
+            'contractSum' => ['required', 'numeric', Money::FORM_RULE, 'min:0.01', 'max:9999999999999.99'],
             'scopeOfWorks' => ['required', 'string', 'min:20', 'max:10000'],
             'awardDate' => ['required', 'date'],
             'expectedCompletionDate' => ['nullable', 'date', 'after_or_equal:awardDate'],

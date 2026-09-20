@@ -96,6 +96,87 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Site inspections (plan §4 — Nasarawa BPP monitoring steps)
+    |--------------------------------------------------------------------------
+    | Read through App\Support\SettingsRepository like everything else here:
+    | how often a state inspects, and how far a GPS fix may sit from the
+    | recorded site before the reading is flagged, are policy decisions.
+    */
+
+    'inspections' => [
+        // Months between routine inspections of an in-progress project.
+        'routine_interval_months' => 1,
+        // Days an inspection report may sit unsubmitted after the visit
+        // before it is flagged as outstanding field work.
+        'report_due_days' => 3,
+        // Metres a geotagged photo may sit from the project location before
+        // the evidence is flagged for review. 0 disables the check.
+        'geofence_metres' => 2000,
+        // Require at least one photograph before an inspection may be filed.
+        'require_photo_evidence' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Issues register + exception reports (plan §4)
+    |--------------------------------------------------------------------------
+    | An exception report is raised when delivery deviates beyond a threshold
+    | the state sets. These are the trigger levels, not constants: a state that
+    | tolerates 10% slippage should not need a release to say so.
+    */
+
+    'exceptions' => [
+        // Percentage points physical progress may fall behind elapsed time
+        // before the project raises a schedule-slippage exception.
+        'schedule_slippage_points' => 15,
+        // Percentage points expenditure may run ahead of physical progress
+        // before a financial-variance exception is raised.
+        'expenditure_variance_points' => 20,
+        // Days an unmet report obligation may sit overdue before a compliance
+        // exception is raised against the project.
+        'reporting_overdue_days' => 14,
+        // Days a high-severity issue may sit open before it escalates.
+        'issue_escalation_days' => [
+            'critical' => 3,
+            'high' => 7,
+            'medium' => 21,
+            'low' => 60,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Evaluation (plan §4 — OECD-DAC criteria)
+    |--------------------------------------------------------------------------
+    | The criteria an evaluation is scored against, and the band boundaries
+    | the traffic lights use. Criteria are configurable because a state may
+    | add its own (e.g. "gender responsiveness") to the DAC five.
+    */
+
+    'evaluation' => [
+        'criteria' => ['relevance', 'efficiency', 'effectiveness', 'impact', 'sustainability'],
+        'score_max' => 5,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Results framework (plan §4 — indicator achievement traffic lights)
+    |--------------------------------------------------------------------------
+    | Achievement bands, in percent of target. At or above `on_track` is
+    | green; at or above `at_risk` is amber; below it is red. One definition,
+    | used by every screen that colours an indicator.
+    */
+
+    'indicators' => [
+        'on_track_percent' => 90,
+        'at_risk_percent' => 70,
+        // Whether a reading must be validated by a Data Quality Reviewer
+        // before it counts towards achievement on dashboards.
+        'require_validation_for_dashboards' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Reporting calendar + deadline engine (progress-reporting.md §0.1)
     |--------------------------------------------------------------------------
     | The statutory reporting calendar is a POLICY decision, not a constant: a

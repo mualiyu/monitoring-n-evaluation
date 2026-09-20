@@ -116,7 +116,12 @@ class UserDirectory extends Component
         return DB::table('model_has_roles')
             ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
             ->where('model_has_roles.model_type', (new User)->getMorphClass())
-            ->whereIn('model_has_roles.model_id', $this->users()->getCollection()->modelKeys())
+            // items(), not getCollection()->modelKeys(): the paginator declares
+            // its collection as a plain Support\Collection, which has no
+            // modelKeys(). items() is typed from this method's own
+            // LengthAwarePaginator<int, User> generic, so the ids come out
+            // without widening the return type or casting.
+            ->whereIn('model_has_roles.model_id', collect($this->users()->items())->pluck('id')->all())
             ->orderBy('roles.name')
             ->get([
                 'model_has_roles.model_id as user_id',

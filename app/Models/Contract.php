@@ -8,6 +8,7 @@ use App\Enums\ContractType;
 use App\Exceptions\Projects\ProjectRuleViolation;
 use App\Models\Builders\ContractBuilder;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasDocuments;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Database\Factories\ContractFactory;
@@ -21,6 +22,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
+use Spatie\MediaLibrary\HasMedia;
 
 /**
  * An engagement between an MDA and a firm — tenant-owned, even though the
@@ -60,9 +62,10 @@ use Spatie\Activitylog\Support\LogOptions;
     'expected_completion_date', 'retention_percentage', 'varies_contract_id',
     'variation_reason', 'created_by_id',
 ])]
-class Contract extends Model
+class Contract extends Model implements HasMedia
 {
     use BelongsToTenant;
+    use HasDocuments;
 
     /** @use HasFactory<ContractFactory> */
     use HasFactory, LogsActivity, SoftDeletes;
@@ -76,6 +79,16 @@ class Contract extends Model
      * stricter and simpler reading of the same rule.
      */
     public const IMMUTABLE_TERMS = ['sum', 'award_date', 'contractor_id', 'scope_of_works'];
+
+    /**
+     * Award letter, BOQ and variation instruments — the contract's paper trail.
+     *
+     * @return list<string>
+     */
+    public function documentCollections(): array
+    {
+        return ['contract_documents'];
+    }
 
     protected static function booted(): void
     {

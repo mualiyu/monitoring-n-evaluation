@@ -2,13 +2,16 @@
 
 namespace App\Providers;
 
+use App\Policies\MediaPolicy;
 use App\Tenancy\CurrentSurface;
 use App\Tenancy\CurrentTenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,6 +28,13 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Media lives in the medialibrary package, so Laravel's policy
+        // auto-discovery (App\Models\X → App\Policies\XPolicy) cannot find
+        // ours. Without this line `can('view', $media)` answers false for
+        // everyone, and — far worse the other way round — a future refactor
+        // that moved the check to a Gate would answer TRUE for everyone.
+        Gate::policy(Media::class, MediaPolicy::class);
+
         Model::preventLazyLoading(! $this->app->isProduction());
         Model::preventSilentlyDiscardingAttributes(! $this->app->isProduction());
         Date::use(CarbonImmutable::class);

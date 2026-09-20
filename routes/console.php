@@ -50,3 +50,19 @@ Schedule::command('reporting:send-reminders')
 Schedule::command('reporting:flag-overdue')
     ->dailyAt('07:15')
     ->withoutOverlapping();
+
+/*
+|--------------------------------------------------------------------------
+| Module schedules
+|--------------------------------------------------------------------------
+| Each domain module owns routes/schedule/<module>.php and drops it into the
+| folder — the same pattern as routes/tenant/ and routes/oversight/. Nothing
+| is wired by hand here, so modules never contend for this file.
+|
+| Keep every sweep ->withoutOverlapping(), and keep correctness in the sweep
+| itself rather than in the guard: a schedule entry is a convenience, and a
+| job that double-sends when it runs twice is broken regardless.
+*/
+foreach (glob(__DIR__.'/schedule/*.php') ?: [] as $moduleSchedule) {
+    require $moduleSchedule;
+}

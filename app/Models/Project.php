@@ -7,6 +7,7 @@ use App\Enums\ProjectStatus;
 use App\Enums\ProjectType;
 use App\Enums\Role;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasDocuments;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Database\Factories\ProjectFactory;
@@ -25,6 +26,7 @@ use Illuminate\Support\Str;
 use LogicException;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
+use Spatie\MediaLibrary\HasMedia;
 
 /**
  * A public project or programme executed under one MDA — tenant-owned.
@@ -82,12 +84,23 @@ use Spatie\Activitylog\Support\LogOptions;
     'expected_end_date', 'revised_end_date', 'actual_end_date',
     'reporting_frequency', 'created_by_id', 'manager_id',
 ])]
-class Project extends Model
+class Project extends Model implements HasMedia
 {
     use BelongsToTenant;
+    use HasDocuments;
 
     /** @use HasFactory<ProjectFactory> */
     use HasFactory, LogsActivity, SoftDeletes;
+
+    /**
+     * The project vault: approvals, designs, correspondence, and site photography.
+     *
+     * @return list<string>
+     */
+    public function documentCollections(): array
+    {
+        return ['project_documents', 'project_photos'];
+    }
 
     protected static function booted(): void
     {

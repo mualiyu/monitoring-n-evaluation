@@ -37,7 +37,6 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\URL;
 use Livewire\Livewire;
-use RuntimeException;
 
 beforeEach(function () {
     Queue::fake();

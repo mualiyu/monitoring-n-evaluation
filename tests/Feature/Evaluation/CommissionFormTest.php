@@ -435,17 +435,19 @@ describe('the evaluation document vault', function () {
             'collection' => 'evaluation_documents',
         ]);
 
-        // Asserted on the CLASS of the refusal because that is what happens
-        // today: DocumentPanel::save() catches ValidationException only, so
-        // medialibrary's sniffed-type guard surfaces as an unhandled
-        // exception rather than as an inline message. The invariant that must
-        // never change is the second assertion — nothing is stored. (Wrapping
-        // the refusal into a validation message belongs to the shared
-        // documents module, and is flagged to the integrator rather than
-        // changed from here.)
-        expect(fn () => $panel
-            ->set('upload', UploadedFile::fake()->create('tor.pdf', 64, 'application/pdf'))
-            ->call('save'))->toThrow(FileUnacceptableForCollection::class);
+        // The refusal now surfaces as an INLINE FIELD ERROR rather than as an
+        // unhandled FileUnacceptableForCollection — DocumentPanel::save()
+        // catches it (this test used to pin the crash, and the fix it asked
+        // for has since landed in the shared documents module).
+        //
+        // The invariant that must never change is the second assertion:
+        // nothing is stored. The first is about whether an officer is told
+        // why — and an officer whose upload vanishes into a 500 files the
+        // evidence by email instead, which is how it leaves the system.
+        $panel->set('upload', UploadedFile::fake()->create('tor.pdf', 64, 'application/pdf'))
+            ->call('save')
+            ->assertHasErrors('upload')
+            ->assertOk();
 
         expect(vaultOf($this->evaluation))->toHaveCount(0);
     });

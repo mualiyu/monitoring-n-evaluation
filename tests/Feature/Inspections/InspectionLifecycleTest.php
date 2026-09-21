@@ -51,7 +51,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
-use RuntimeException;
 
 beforeEach(function () {
     Storage::fake('documents');

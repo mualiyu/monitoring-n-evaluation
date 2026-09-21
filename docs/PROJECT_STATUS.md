@@ -171,6 +171,14 @@ one would be churn, not safety.
 - **`UploadedFile::fake()->create()` writes a ZERO-BYTE file**, and both
   medialibrary and our own `mimetypes:` rule sniff the bytes on disk. Use
   `->createWithContent()` or `->image()`.
+- **The two mime checks DISAGREE on a truncated upload, and the gap was a 500.**
+  Our `mimetypes:` rule reads the type Laravel reports for the upload;
+  medialibrary re-reads the bytes. A connection that drops mid-upload declares
+  `application/pdf` and sniffs as `application/x-empty` — it clears ours and is
+  refused by theirs, which is `FileUnacceptableForCollection`, not a validation
+  error. `DocumentPanel::save()` catches it and turns it into a field message.
+  Nothing was ever stored; what was missing was telling the officer why, and an
+  upload that vanishes into a crashed screen gets filed by email instead.
 - **`Gate::policy()` must register `MediaPolicy` explicitly** — `Media` lives in
   the package, so auto-discovery never finds it and `can('view', $media)` would
   answer false for everyone.

@@ -32,7 +32,6 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Bus;
-use RuntimeException;
 
 beforeEach(function () {
     Bus::fake();

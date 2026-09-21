@@ -14,6 +14,7 @@ use App\Tenancy\CurrentTenant;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Livewire\Attributes\Computed;
@@ -21,6 +22,7 @@ use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileUnacceptableForCollection;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
@@ -188,6 +190,23 @@ class DocumentPanel extends Component
         } catch (ValidationException $exception) {
             throw ValidationException::withMessages([
                 'upload' => $exception->validator->errors()->all(),
+            ]);
+        } catch (FileUnacceptableForCollection) {
+            // REACHABLE, and it used to be a 500. Our `mimetypes:` rule reads
+            // the type Laravel reports for the upload; medialibrary's own
+            // allow-list re-reads the bytes on disk. A TRUNCATED upload — the
+            // 3G connection that drops halfway, which is the normal case for
+            // a field monitor — declares application/pdf and sniffs as
+            // application/x-empty, so it clears ours and is refused by theirs.
+            //
+            // Nothing is stored either way, which is the part that matters.
+            // What was missing was telling the officer why: an upload that
+            // vanishes into a crashed screen gets filed by email instead,
+            // which is how the evidence stops being in the system at all.
+            throw ValidationException::withMessages([
+                'upload' => __('That file is not a :collection — its contents do not match a type this collection accepts.', [
+                    'collection' => Str::lower($this->definitions()->label($this->collection)),
+                ]),
             ]);
         }
 

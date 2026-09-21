@@ -5,6 +5,7 @@ use App\Actions\Documents\DeleteDocument;
 use App\Actions\Projects\AssignProjectMember;
 use App\Enums\ProjectRole;
 use App\Enums\Role;
+use App\Livewire\Shared\DocumentPanel;
 use App\Models\Project;
 use App\Models\Tenant;
 use App\Models\User;
@@ -13,6 +14,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
+use Livewire\Livewire;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
@@ -250,4 +252,28 @@ it('still refuses an oversight download to a role without documents.view in the 
 
     expect($mdaAdmin->holdsGlobalPermission('documents.view'))->toBeFalse()
         ->and($mdaAdmin->can('view', $media))->toBeFalse();
+});
+
+it('tells an officer why a file was refused instead of crashing the screen', function () {
+    $officer = actingAsMember(Role::MeOfficer, $this->tenant);
+
+    Livewire::actingAs($officer)
+        ->test(DocumentPanel::class, [
+            'model' => $this->project,
+            'collection' => 'project_documents',
+        ])
+        // A TRUNCATED upload: declares application/pdf, holds no bytes. This
+        // is the case the two sniffers disagree on — our `mimetypes:` rule
+        // reads the declared type and passes it, medialibrary re-reads the
+        // file and refuses it — and it is the normal failure of a 3G
+        // connection dropping mid-upload, not an exotic attack.
+        ->set('upload', UploadedFile::fake()->create('award.pdf', 64, 'application/pdf'))
+        ->call('save')
+        // An inline field error on the form, not an exception page. An officer
+        // whose upload vanishes into a 500 files it by email instead, and the
+        // evidence stops being in the system.
+        ->assertHasErrors('upload')
+        ->assertOk();
+
+    expect($this->project->getMedia('project_documents'))->toHaveCount(0);
 });

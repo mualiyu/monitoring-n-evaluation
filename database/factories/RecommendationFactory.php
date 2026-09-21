@@ -103,7 +103,7 @@ class RecommendationFactory extends Factory
     {
         return $this->state([
             'status' => RecommendationStatus::Accepted,
-            'accepted_by_id' => $by?->id ?? User::factory(),
+            'accepted_by_id' => $by->id ?? User::factory(),
             'accepted_at' => CarbonImmutable::now(),
         ]);
     }
@@ -117,7 +117,7 @@ class RecommendationFactory extends Factory
     {
         return $this->accepted($by)->state([
             'status' => RecommendationStatus::Implemented,
-            'implemented_by_id' => $by?->id ?? User::factory(),
+            'implemented_by_id' => $by->id ?? User::factory(),
             'implemented_at' => CarbonImmutable::now(),
             'implementation_evidence' => 'Revised works programme issued 14 May; drainage now precedes '
                 .'carriageway on all three sections. Contractor instruction attached to the project vault.',

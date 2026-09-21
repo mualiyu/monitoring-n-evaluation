@@ -19,6 +19,7 @@ use App\Models\Evaluation;
 use App\Models\EvaluationEvent;
 use App\Models\Recommendation;
 use App\Models\User;
+use App\Rules\IsWorkspaceMember;
 use App\Support\Money;
 use App\Support\SettingsRepository;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -619,7 +620,10 @@ class EvaluationDetail extends Component
         $this->validate([
             'recommendationTitle' => ['required', 'string', 'min:8', 'max:255'],
             'recommendationBody' => ['required', 'string', 'min:20', 'max:5000'],
-            'recommendationAddresseeId' => [$this->recommendationAddresseeBody === '' ? 'required' : 'nullable', 'integer'],
+            // IsWorkspaceMember, not bare `integer`: the Action refuses a
+            // non-member too, but a form that posts one should say so in the
+            // field rather than throw a domain exception at the user.
+            'recommendationAddresseeId' => [$this->recommendationAddresseeBody === '' ? 'required' : 'nullable', 'integer', new IsWorkspaceMember],
             'recommendationAddresseeBody' => [$this->recommendationAddresseeId === '' ? 'required' : 'nullable', 'string', 'max:255'],
             'recommendationPriority' => ['required', 'string', 'in:'.implode(',', array_column(RecommendationPriority::cases(), 'value'))],
             // `numeric` paired with Money::FORM_RULE — `numeric` alone accepts

@@ -12,6 +12,7 @@ use App\Models\CommencementNotice;
 use App\Models\Contract;
 use App\Models\User;
 use App\Support\SettingsRepository;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -96,7 +97,7 @@ class IssueCommencementNotice
             ]);
 
             if ($commencementDate !== null) {
-                $notice->commencement_date = $commencementDate;
+                $notice->commencement_date = CarbonImmutable::instance($commencementDate);
             }
 
             // Explicit, like ProjectStatusEvent's: the project is always the

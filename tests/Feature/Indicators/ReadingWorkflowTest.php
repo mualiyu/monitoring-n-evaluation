@@ -37,7 +37,6 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Auth\Access\AuthorizationException;
-use RuntimeException;
 
 beforeEach(function () {
     seedPermissions();

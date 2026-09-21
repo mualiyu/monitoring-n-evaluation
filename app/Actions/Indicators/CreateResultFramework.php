@@ -38,7 +38,7 @@ class CreateResultFramework
         $this->assertNesting($level, $parent, $project);
 
         return ResultFramework::query()->create([
-            'project_id' => $parent?->project_id ?? $project?->id,
+            'project_id' => $parent->project_id ?? $project?->id,
             'parent_id' => $parent?->id,
             'level' => $level,
             'code' => $code,

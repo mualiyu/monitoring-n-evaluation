@@ -114,7 +114,7 @@
                         @if ($inspecting === $entry->id)
                             <x-ui.table.row wire:key="entry-detail-{{ $entry->id }}" muted>
                                 <x-ui.table.cell stacked :label="__('Before and after')">
-                                    @php($changes = $this->changes($entry))
+                                    @php($changes = $this->changes($entry->id))
 
                                     @if ($changes === [])
                                         <p class="text-xs text-ink-muted">{{ __('This entry records an act rather than a field change — nothing was altered on the record itself.') }}</p>

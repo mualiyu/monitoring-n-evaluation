@@ -53,7 +53,7 @@ class EvaluationCriterionScoreFactory extends Factory
             'justification' => 'Beneficiary interviews and the 2026 needs assessment both place this '
                 .'intervention among the three highest-priority works in the LGA.',
             'evidence_reference' => 'Findings §4.2',
-            'scored_by_id' => $by?->id ?? User::factory(),
+            'scored_by_id' => $by->id ?? User::factory(),
             'scored_at' => CarbonImmutable::now(),
         ]);
     }

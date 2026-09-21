@@ -318,7 +318,11 @@ it('renders the before and after of one entry as rows a human can read', functio
     expect($entry->properties->toArray())->toBe([])
         ->and($entry->attribute_changes?->toArray())->toHaveKey('attributes');
 
-    $changes = Livewire::actingAs($this->stateAdmin)->test(AuditLog::class)->instance()->changes($entry);
+    // By ID, deliberately: changes() takes an id and resolves the entry from
+    // the screen's own page, because activity_log is unscoped and
+    // integer-keyed and a model-typed Livewire method parameter is bound from
+    // client-supplied call params.
+    $changes = Livewire::actingAs($this->stateAdmin)->test(AuditLog::class)->instance()->changes($entry->id);
 
     expect($changes)->not->toBeEmpty()
         ->and(collect($changes)->pluck('attribute'))->toContain('Status')
@@ -333,7 +337,7 @@ it('still reads the before and after of an entry that wrote its own pairs', func
 
     $entry = Activity::query()->where('description', 'tenant.deactivated')->sole();
 
-    $changes = Livewire::actingAs($this->stateAdmin)->test(AuditLog::class)->instance()->changes($entry);
+    $changes = Livewire::actingAs($this->stateAdmin)->test(AuditLog::class)->instance()->changes($entry->id);
 
     expect(collect($changes)->firstWhere('attribute', 'Is active'))
         ->toMatchArray(['from' => __('Yes'), 'to' => __('No')]);
@@ -435,7 +439,7 @@ it('shows one record’s history to whoever may view the record, and nobody else
     // The before/after really is on the panel, not merely in the table.
     $entry = $panel->instance()->entries()->firstWhere('event', 'updated');
 
-    expect(collect($panel->instance()->changes($entry))->pluck('attribute'))->toContain('Status');
+    expect(collect($panel->instance()->changes($entry->id))->pluck('attribute'))->toContain('Status');
 
     // The panel asks the RECORD's own policy rather than inventing a second
     // rule, so a foreign record's history is refused with the record.

@@ -7,6 +7,7 @@ use App\Enums\IndicatorTier;
 use App\Enums\IndicatorUnit;
 use App\Enums\MeasurementFrequency;
 use App\Enums\TargetType;
+use App\Models\Builders\IndicatorReadingBuilder;
 use App\Models\Concerns\BelongsToTenant;
 use App\Support\IndicatorAchievement;
 use Carbon\CarbonImmutable;
@@ -277,9 +278,22 @@ class Indicator extends Model
         // reading of any status and the outer filter would then discard it,
         // reporting "no data" for an indicator that has a perfectly good
         // validated figure from the period before.
+        // A CLOSURE that calls the scope on the builder it is handed — never
+        // `IndicatorReading::countable(...)`. A first-class callable on a model
+        // scope resolves through __callStatic, which builds its OWN query,
+        // applies the scope to that, and returns it; the builder `ofMany`
+        // passed in comes back untouched and its return value is discarded.
+        // The constraint then silently does nothing and the sub-select picks
+        // the latest reading of ANY status — which is the whole
+        // `indicators.require_validation_for_dashboards` guard gone, with a
+        // green suite and an unchecked figure on the dashboard.
         return $this->hasOne(IndicatorReading::class)->ofMany(
             ['period_end' => 'max', 'id' => 'max'],
-            fn (Builder $query) => $query->countable(),
+            // Typed as the reading's OWN builder so `countable()` is a real
+            // method rather than a magic scope — and so the constraint is
+            // applied to the query ofMany() handed us, which is the whole
+            // point of the warning above.
+            fn (IndicatorReadingBuilder $query) => $query->countable(),
         );
     }
 

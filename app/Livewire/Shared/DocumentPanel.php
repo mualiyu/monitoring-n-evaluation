@@ -35,9 +35,16 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *
  *   <livewire:shared.document-panel :model="$project" collection="project_documents" />
  *
- * The owning record arrives as a Livewire model property, so it re-hydrates
- * through its own global scope on every update: another MDA's record cannot
- * be smuggled in by editing the payload — the TenantScope refuses to load it.
+ * A WORD ON THE MODEL PROPERTY. It is tempting to say the owning record
+ * "re-hydrates through its own global scope, so another MDA's record cannot be
+ * smuggled in by editing the payload". That is FALSE, and it used to be
+ * written here as a security argument. Livewire restores a model property with
+ * `newQueryForRestoration()`, which is `newQueryWithoutScopes()->whereKey()` —
+ * the TenantScope is OFF for every model property on every update request.
+ *
+ * What actually protects this component is the snapshot checksum (the client
+ * cannot edit the key) and, decisively, the authorize() call on every method
+ * below, whose Policy compares tenant_id. Never rely on the scope here.
  */
 class DocumentPanel extends Component
 {
@@ -109,9 +116,27 @@ class DocumentPanel extends Component
      * Both surfaces register the same route name under their own prefix, and
      * generating the wrong one would sign a URL for a host the viewer cannot
      * reach.
+     *
+     * It takes a UUID STRING, not a Media model, and that is a security
+     * decision rather than a style one. A public Livewire method with an
+     * Eloquent-typed parameter is resolved by implicit route-model binding
+     * from CLIENT-SUPPLIED call params, and `media` carries no tenant scope
+     * and an auto-increment route key — so the model-typed version of this
+     * method would mint a signed URL for any media id on the platform, handed
+     * straight back to the browser in `effects.returns`. A consultant could
+     * read the bill of quantities of a project they are not assigned to.
+     *
+     * Resolving from THIS record's own collection instead means the only
+     * documents this method can ever sign for are the ones already on screen.
      */
-    public function downloadUrl(Media $media): string
+    public function downloadUrl(string $uuid): string
     {
+        $media = $this->documents()->firstWhere('uuid', $uuid);
+
+        abort_unless($media instanceof Media, 404);
+
+        $this->authorize('view', $media);
+
         $surface = app(CurrentSurface::class)->get();
         $oversight = $surface === Surface::Oversight;
         $prefix = $oversight ? Surface::Oversight->value : Surface::Tenant->value;

@@ -61,7 +61,7 @@ class TransitionRecommendationStatus
 
             if ($locked === null || $locked->status !== $from) {
                 throw InvalidEvaluationTransition::betweenRecommendationStates(
-                    $locked?->status ?? $from,
+                    $locked->status ?? $from,
                     $to,
                 );
             }

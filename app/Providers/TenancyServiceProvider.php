@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Http\Middleware\EnsureAccountIsActive;
+use App\Http\Middleware\EnsureTenantMembership;
+use App\Http\Middleware\MatchLivewireComponentToSurface;
 use App\Http\Middleware\RequireTwoFactor;
 use App\Http\Middleware\ResolveTenant;
 use App\Tenancy\CurrentTenant;
@@ -26,7 +28,12 @@ class TenancyServiceProvider extends ServiceProvider
     {
         Livewire::setUpdateRoute(function (callable|array $handle, string $path) {
             $domain = config('platform.domain');
-            $middleware = ['web', RequireLivewireHeaders::class];
+            // Every surface's update route carries it: a component may only be
+            // driven from the surface it belongs to, whatever host a replayed
+            // snapshot is posted to. See the middleware's own docblock — the
+            // apex route is the reason it exists, because that one cannot
+            // carry `auth` (the public portal has a Livewire component).
+            $middleware = ['web', RequireLivewireHeaders::class, MatchLivewireComponentToSurface::class];
 
             /*
             | The per-request account gates, re-applied on every component
@@ -47,10 +54,23 @@ class TenancyServiceProvider extends ServiceProvider
             | supply. Registering them as persistent therefore looks like
             | protection and does nothing. Explicit route middleware it is.
             |
-            | EnsureTenantMembership is deliberately absent: it answers with a
-            | rendered 403 view, and revoked membership is already covered
-            | because RevokeTenantAccess removes the tenant roles, so every
-            | Policy check fails on permission.
+            | EnsureTenantMembership is on this list too, and its absence was a
+            | CROSS-TENANT LEAK. The old reasoning — "revoked membership is
+            | already covered, because RevokeTenantAccess removes the tenant
+            | roles and every Policy check then fails on permission" — is wrong
+            | twice. It only covers a REVOKED member, not one who was never a
+            | member; and it assumes every read ends at a Policy, while a list
+            | screen's reads end at a query scope, because Livewire does not
+            | re-run mount() on an update.
+            |
+            | The exploit it allowed: log in at a foreign MDA's host (Fortify is
+            | domain-less, so authentication succeeds there even though the
+            | workspace answers 403), then POST a snapshot legitimately obtained
+            | from your OWN workspace to that host's update endpoint. The
+            | snapshot checksum covers the snapshot, not the host, so it
+            | validates; ResolveTenant binds the neighbour; and the component
+            | renders their register. Project::scopeVisibleTo now fails closed
+            | as well — two independent gates, because this one cost a leak.
             */
             $accountGates = [EnsureAccountIsActive::class, RequireTwoFactor::class];
 
@@ -78,7 +98,7 @@ class TenancyServiceProvider extends ServiceProvider
             // Gates AFTER ResolveTenant: RequireTwoFactor reads the user's
             // roles, which spatie resolves against the bound permission team.
             Route::domain('{tenant}.'.$domain)
-                ->middleware([...$middleware, ResolveTenant::class, ...$accountGates])
+                ->middleware([...$middleware, ResolveTenant::class, EnsureTenantMembership::class, ...$accountGates])
                 ->post($path, $handle)
                 ->where(['tenant' => config('platform.tenant_slug_pattern')])
                 ->name('tenant.livewire-update');

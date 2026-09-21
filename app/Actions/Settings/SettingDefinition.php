@@ -94,11 +94,11 @@ final readonly class SettingDefinition
         return match ($this->type) {
             self::TYPE_INT => (int) $input,
             self::TYPE_BOOL => filter_var($input, FILTER_VALIDATE_BOOL),
-            self::TYPE_INTS => array_values(array_map(
+            self::TYPE_INTS => (array_map(
                 static fn (string $part): int => (int) trim($part),
                 $this->splitList($input),
             )),
-            self::TYPE_STRINGS => array_values(array_map(
+            self::TYPE_STRINGS => (array_map(
                 static fn (string $part): string => trim($part),
                 $this->splitList($input),
             )),

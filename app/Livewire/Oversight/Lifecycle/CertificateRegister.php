@@ -164,7 +164,7 @@ class CertificateRegister extends Component
             ]);
 
             /** @var Certificate $certificate */
-            foreach ($certificates as $certificate) {
+            foreach ($certificates->items() as $certificate) {
                 fputcsv($handle, [
                     $certificate->tenant->name,
                     $certificate->reference,

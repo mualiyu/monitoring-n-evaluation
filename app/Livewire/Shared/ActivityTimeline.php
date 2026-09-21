@@ -30,9 +30,16 @@ use Spatie\Activitylog\Models\Activity;
  * "must be signed in" — deliberately conservative, and it means a module that
  * forgets its policy gets a locked panel rather than an open one.
  *
- * The record arrives as a Livewire model property, so it re-hydrates through
- * its own global scope on every update: another MDA's record cannot be
- * smuggled in by editing the payload — the TenantScope refuses to load it.
+ * A WORD ON THE MODEL PROPERTY. It is tempting to say the owning record
+ * "re-hydrates through its own global scope, so another MDA's record cannot be
+ * smuggled in by editing the payload". That is FALSE, and it used to be
+ * written here as a security argument. Livewire restores a model property with
+ * `newQueryForRestoration()`, which is `newQueryWithoutScopes()->whereKey()` —
+ * the TenantScope is OFF for every model property on every update request.
+ *
+ * What actually protects this component is the snapshot checksum (the client
+ * cannot edit the key) and, decisively, the authorize() call on every method
+ * below, whose Policy compares tenant_id. Never rely on the scope here.
  */
 class ActivityTimeline extends Component
 {
@@ -93,8 +100,21 @@ class ActivityTimeline extends Component
      *
      * @return list<array{attribute: string, from: string, to: string}>
      */
-    public function changes(Activity $activity): array
+    public function changes(int|string $activityId): array
     {
+        // Resolved from THIS component's own page of entries, never from the
+        // id the client sent. A public Livewire method with an Eloquent-typed
+        // parameter is bound by implicit route-model binding from
+        // CLIENT-SUPPLIED call params — and `activity_log` carries no tenant
+        // scope and an auto-increment key, so the model-typed version of this
+        // method let a caller walk 1, 2, 3… and read every MDA's audit diffs:
+        // contract sums, project figures, IAM changes, settings.
+        $activity = $this->entries()->firstWhere('id', $activityId);
+
+        if (! $activity instanceof Activity) {
+            return [];
+        }
+
         $properties = $this->changeSet($activity);
 
         $old = is_array($properties['old'] ?? null) ? $properties['old'] : [];

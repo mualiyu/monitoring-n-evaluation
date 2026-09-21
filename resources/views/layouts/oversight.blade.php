@@ -139,7 +139,12 @@
                 'icon' => 'inbox',
                 'href' => route('oversight.consolidation.index'),
                 'active' => request()->routeIs('oversight.consolidation.*'),
-                'can' => 'oversight.consolidation.manage',
+                // The DESK is readable by any oversight role that can read a
+                // report; only compiling and approving need
+                // oversight.consolidation.manage, and the screen enforces that
+                // itself. Gating the link on the write permission hid a
+                // readable screen from the executives it is written for.
+                'can' => 'oversight.reports.view',
             ],
             [
                 'label' => __('Report builder'),

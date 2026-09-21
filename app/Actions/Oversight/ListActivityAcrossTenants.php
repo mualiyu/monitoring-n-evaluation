@@ -255,7 +255,7 @@ class ListActivityAcrossTenants
             $type = (string) $type;
             $class = Relation::getMorphedModel($type) ?: $type;
 
-            if (! is_string($class) || ! class_exists($class) || ! is_subclass_of($class, Model::class)) {
+            if (! class_exists($class) || ! is_subclass_of($class, Model::class)) {
                 continue;
             }
 

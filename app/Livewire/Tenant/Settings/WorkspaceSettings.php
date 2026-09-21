@@ -197,7 +197,7 @@ class WorkspaceSettings extends Component
         $definition = SettingDefinitions::find($group, $key);
 
         session()->flash('status', __(':setting now follows the state again.', [
-            'setting' => $definition?->label ?? $key,
+            'setting' => $definition->label ?? $key,
         ]));
     }
 

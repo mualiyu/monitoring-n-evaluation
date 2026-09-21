@@ -264,7 +264,7 @@ class InspectionIndex extends Component
     public function page(): Collection
     {
         /** @var Collection<int, SiteInspection> $items */
-        $items = $this->inspections()->getCollection();
+        $items = collect($this->inspections()->items());
 
         return $items;
     }

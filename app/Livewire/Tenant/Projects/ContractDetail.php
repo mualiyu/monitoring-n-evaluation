@@ -28,6 +28,21 @@ use Livewire\Component;
  * A variation has no separate URL in the navigation, but its ULID resolves
  * here too: someone will paste one. It renders as itself, headed by a link to
  * the award it amends, rather than 404ing on a record that plainly exists.
+ *
+ * Livewire resolves a #[Computed] method as a property, with caching; these
+ * annotations are what let static analysis see that. They mirror the methods
+ * below — keep them in step.
+ *
+ * @property-read Contract $record
+ * @property-read Contract $head
+ * @property-read Collection<int, Contract> $variations
+ * @property-read Money $revisedValue
+ * @property-read bool $canRecordVariation
+ * @property-read string $projectsUrl
+ * @property-read string $projectUrl
+ * @property-read string $contractsTabUrl
+ * @property-read string $headUrl
+ * @property-read string $recordVariationUrl
  */
 #[Layout('layouts::tenant')]
 class ContractDetail extends Component

@@ -264,10 +264,6 @@ class FeedbackQueue extends Component
 
         $feedback = $this->authorizeOn($this->responding, 'respond');
 
-        if (! $feedback instanceof Feedback) {
-            return;
-        }
-
         $this->failure = null;
 
         try {
@@ -299,10 +295,6 @@ class FeedbackQueue extends Component
     ): void {
         $feedback = $this->authorizeOn($ulid, 'moderate');
 
-        if (! $feedback instanceof Feedback) {
-            return;
-        }
-
         $this->failure = null;
 
         try {
@@ -318,7 +310,7 @@ class FeedbackQueue extends Component
         session()->flash('status', $success);
     }
 
-    private function authorizeOn(string $ulid, string $ability): ?Feedback
+    private function authorizeOn(string $ulid, string $ability): Feedback
     {
         $this->authorizeSurface();
 

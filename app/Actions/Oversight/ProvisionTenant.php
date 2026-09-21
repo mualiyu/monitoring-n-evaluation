@@ -45,9 +45,9 @@ class ProvisionTenant
             throw new AuthorizationException('Provisioning a workspace requires state-level tenants.manage authority.');
         }
 
-        $slug = $this->validatedSlug((string) ($attributes['slug'] ?? ''));
+        $slug = $this->validatedSlug((string) $attributes['slug']);
 
-        $type = $attributes['type'] ?? TenantType::Ministry;
+        $type = $attributes['type'];
         $type = $type instanceof TenantType ? $type : (TenantType::tryFrom((string) $type) ?? TenantType::Ministry);
 
         return DB::transaction(function () use ($actor, $attributes, $slug, $type, $administratorEmail): Tenant {

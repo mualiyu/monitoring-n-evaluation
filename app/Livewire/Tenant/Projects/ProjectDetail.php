@@ -43,6 +43,23 @@ use Livewire\Component;
  * and a variation each need more of the record than a modal can ask for
  * without lying about what is optional, and the variation path needs the
  * contract it amends in front of the officer while they fill it in.
+ *
+ * Livewire resolves a #[Computed] method as a property, with caching; these
+ * annotations are what let static analysis see that. They mirror the methods
+ * below — keep them in step.
+ *
+ * @property-read list<string> $visibleTabs
+ * @property-read list<array{status: ProjectStatus, needsReason: bool}> $availableTransitions
+ * @property-read Collection<int, ProjectStatusEvent> $statusEvents
+ * @property-read Collection<int, ProjectLocation> $locations
+ * @property-read Collection<int, Contract> $contracts
+ * @property-read Collection<int, ProjectAssignment> $assignments
+ * @property-read Collection<int, Indicator> $indicators
+ * @property-read Collection<int, ProjectFundingSource> $fundingAllocations
+ * @property-read Collection<int, User> $assignableUsers
+ * @property-read string $projectsUrl
+ * @property-read string $editUrl
+ * @property-read string $contractCreateUrl
  */
 #[Layout('layouts::tenant')]
 class ProjectDetail extends Component

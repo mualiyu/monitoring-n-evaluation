@@ -61,7 +61,10 @@ class BuildPortalSummary
                 // unpublished project's site must not widen the claim.
                 'lgas' => ProjectLocation::query()
                     ->whereNotNull('lga_id')
-                    ->whereHas('project', fn (Builder $project) => PublicProjectPayload::publishedOnly($project))
+                    ->whereHas('project', function (Builder $project): void {
+                        /** @var Builder<Project> $project */
+                        PublicProjectPayload::publishedOnly($project);
+                    })
                     ->distinct()
                     ->count('lga_id'),
             ];

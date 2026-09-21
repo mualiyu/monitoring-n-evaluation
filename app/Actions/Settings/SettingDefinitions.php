@@ -118,6 +118,7 @@ final class SettingDefinitions
             'reporting' => __('Reporting deadlines'),
             'inspections' => __('Site inspection policy'),
             'exceptions' => __('Exception thresholds'),
+            'workplans' => __('Annual work plans'),
             'indicators' => __('Indicator achievement bands'),
             'evaluation' => __('Evaluation criteria'),
             'monitoring' => __('Monitoring lifecycle'),
@@ -135,6 +136,7 @@ final class SettingDefinitions
             'reporting' => __('The statutory reporting calendar: how long an MDA has after a period ends, when it is reminded, and when lateness escalates.'),
             'inspections' => __('How often projects are inspected, how quickly the visit must be written up, and what the evidence must prove.'),
             'exceptions' => __('How far delivery may deviate before the platform raises an exception report against a project.'),
+            'workplans' => __('What an annual work plan must satisfy before it can be approved.'),
             'indicators' => __('The achievement bands behind every traffic light on the dashboards.'),
             'evaluation' => __('The criteria an evaluation is scored against, and the top of the scale.'),
             'monitoring' => __('The lifecycle clock: notice periods, the first inspection, the mid-term trigger and the post-completion window.'),
@@ -382,6 +384,32 @@ final class SettingDefinitions
                 key: 'require_photo_evidence',
                 label: __('Require a photograph on every inspection'),
                 hint: __('An inspection with no picture is one person\'s word.'),
+                type: SettingDefinition::TYPE_BOOL,
+                default: true,
+                tenantOverridable: true,
+            ),
+
+            /* ---------------------------------------------------------- */
+            /* Annual work plans */
+            /* ---------------------------------------------------------- */
+            // Both of these were already READ by TransitionWorkplanStatus and
+            // defined nowhere, so they silently resolved to their hard-coded
+            // fallbacks and SaveSetting rejected them as "Unknown setting" —
+            // the manual's own output-indicator rule could not be switched on.
+            new SettingDefinition(
+                group: 'workplans',
+                key: 'require_output_indicator',
+                label: __('Every activity must name an output indicator'),
+                hint: __('The M&E manual requires it. Leave off while the results framework is still being built — otherwise no plan can be approved.'),
+                type: SettingDefinition::TYPE_BOOL,
+                default: false,
+                tenantOverridable: true,
+            ),
+            new SettingDefinition(
+                group: 'workplans',
+                key: 'require_separate_approver',
+                label: __('The approver must not be the person who submitted the plan'),
+                hint: __('Turn off only for a single-officer entity where nobody else can sign.'),
                 type: SettingDefinition::TYPE_BOOL,
                 default: true,
                 tenantOverridable: true,

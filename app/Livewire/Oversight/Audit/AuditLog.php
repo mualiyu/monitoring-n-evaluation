@@ -228,8 +228,17 @@ class AuditLog extends Component
      *
      * @return list<array{attribute: string, from: string, to: string}>
      */
-    public function changes(Activity $activity): array
+    public function changes(int|string $activityId): array
     {
+        // See ActivityTimeline::changes(): resolved from this screen's own
+        // page, never from the id the client sent, because activity_log is
+        // unscoped and integer-keyed.
+        $activity = collect($this->entries()->items())->firstWhere('id', $activityId);
+
+        if (! $activity instanceof Activity) {
+            return [];
+        }
+
         $properties = $this->changeSet($activity);
 
         $old = is_array($properties['old'] ?? null) ? $properties['old'] : [];

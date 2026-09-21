@@ -48,7 +48,7 @@ final class NotificationLink
 
     public static function for(DatabaseNotification $notification, bool $onTenantSurface): ?string
     {
-        $data = is_array($notification->data) ? $notification->data : [];
+        $data = $notification->data;
 
         foreach (self::TARGETS as $target) {
             $identifier = $data[$target['key']] ?? null;
@@ -82,7 +82,7 @@ final class NotificationLink
      */
     public static function summary(DatabaseNotification $notification): string
     {
-        $data = is_array($notification->data) ? $notification->data : [];
+        $data = $notification->data;
 
         $reference = $data['project_reference'] ?? null;
         $title = $data['project_title'] ?? null;
@@ -100,7 +100,7 @@ final class NotificationLink
     /** The notification's own kind, humanised — never a raw enum value. */
     public static function headline(DatabaseNotification $notification): string
     {
-        $data = is_array($notification->data) ? $notification->data : [];
+        $data = $notification->data;
         $type = $data['type'] ?? null;
 
         if (! is_string($type) || $type === '') {

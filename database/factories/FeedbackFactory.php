@@ -70,7 +70,7 @@ class FeedbackFactory extends Factory
     {
         return $this->state(fn (): array => [
             'status' => FeedbackStatus::Published,
-            'moderated_by_id' => $moderator?->id ?? User::factory(),
+            'moderated_by_id' => $moderator->id ?? User::factory(),
             'moderated_at' => now()->subDay(),
             'moderation_reason' => null,
         ]);
@@ -80,7 +80,7 @@ class FeedbackFactory extends Factory
     {
         return $this->state(fn (): array => [
             'status' => FeedbackStatus::Rejected,
-            'moderated_by_id' => $moderator?->id ?? User::factory(),
+            'moderated_by_id' => $moderator->id ?? User::factory(),
             'moderated_at' => now()->subDay(),
             'moderation_reason' => 'Names a private individual and repeats an unverified allegation.',
         ]);
@@ -90,7 +90,7 @@ class FeedbackFactory extends Factory
     {
         return $this->state(fn (): array => [
             'status' => FeedbackStatus::Spam,
-            'moderated_by_id' => $moderator?->id ?? User::factory(),
+            'moderated_by_id' => $moderator->id ?? User::factory(),
             'moderated_at' => now()->subDay(),
             'moderation_reason' => 'Advertising.',
             'flagged_as_spam' => true,

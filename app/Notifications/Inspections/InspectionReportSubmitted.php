@@ -46,7 +46,7 @@ class InspectionReportSubmitted extends Notification
             ->subject(__('Field Trip Report filed: :title', ['title' => $project->title]))
             ->greeting(__('Hello,'))
             ->line(__(':inspector has filed the report for the :type of :title (:reference), conducted on :date.', [
-                'inspector' => $this->inspection->submittedBy?->name ?? $this->inspection->leadInspector->name,
+                'inspector' => $this->inspection->submittedBy->name ?? $this->inspection->leadInspector->name,
                 'type' => mb_strtolower($this->inspection->type->label()),
                 'title' => $project->title,
                 'reference' => $project->reference,

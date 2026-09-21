@@ -66,10 +66,15 @@ class ProjectIssuesPanel extends Component
         /** @var User $user */
         $user = auth()->user();
 
-        $cases = '';
+        // Bound parameters, not interpolation. The values are enum cases and
+        // could never be injected — but "it happens to be safe today" is how a
+        // raw string survives until somebody makes it take a filter value.
+        $whens = str_repeat('WHEN ? THEN ? ', count(IssueSeverity::cases()));
+        $bindings = [];
 
         foreach (IssueSeverity::cases() as $severity) {
-            $cases .= sprintf(" WHEN '%s' THEN %d", $severity->value, -$severity->weight());
+            $bindings[] = $severity->value;
+            $bindings[] = -$severity->weight();
         }
 
         return Issue::query()
@@ -77,7 +82,7 @@ class ProjectIssuesPanel extends Component
             ->where('project_id', $this->project->id)
             ->open()
             ->with('owner:id,name')
-            ->orderByRaw('CASE severity'.$cases.' ELSE 0 END')
+            ->orderByRaw('CASE severity '.$whens.'ELSE 0 END', $bindings)
             ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
             ->orderBy('due_date')
             ->orderByDesc('id')

@@ -58,8 +58,12 @@ trait HasDocuments
      */
     public function registerMediaConversions(?Media $media = null): void
     {
+        // nonQueued() BEFORE fit(): fit() is forwarded to the image driver and
+        // returns it, so calling nonQueued() after it is a call on the wrong
+        // object — conversions would silently queue on a platform with no
+        // queue worker running in local development.
         $this->addMediaConversion('thumb')
-            ->fit(Fit::Crop, 320, 240)
-            ->nonQueued();
+            ->nonQueued()
+            ->fit(Fit::Crop, 320, 240);
     }
 }

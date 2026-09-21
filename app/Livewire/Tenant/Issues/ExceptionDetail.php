@@ -32,6 +32,12 @@ use Livewire\Component;
  * Turning a deviation into work somebody owns is the one mutation here that
  * creates a record elsewhere, and it goes through RaiseIssueFromException —
  * the single path that may write `issue_id`.
+ *
+ * Livewire resolves a #[Computed] method as a property, with caching; these
+ * annotations are what let static analysis see that. They mirror the methods
+ * below — keep them in step.
+ *
+ * @property-read list<ExceptionStatus> $availableTransitions
  */
 #[Layout('layouts::tenant')]
 class ExceptionDetail extends Component

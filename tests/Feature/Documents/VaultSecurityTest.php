@@ -2,6 +2,8 @@
 
 use App\Actions\Documents\AttachDocument;
 use App\Actions\Documents\DeleteDocument;
+use App\Actions\Projects\AssignProjectMember;
+use App\Enums\ProjectRole;
 use App\Enums\Role;
 use App\Models\Project;
 use App\Models\Tenant;
@@ -181,4 +183,71 @@ it('logs an append-only audit line when a document is removed', function () {
     ]);
 
     expect(Media::query()->whereKey($media->getKey())->exists())->toBeFalse();
+});
+
+/* -------------------------------------------------------------------------- */
+/* The owner's own visibility rule — a security audit finding */
+/* -------------------------------------------------------------------------- */
+
+it('refuses a consultant a document of a project they are not assigned to', function () {
+    $admin = actingAsMember(Role::MdaAdmin, $this->tenant);
+    $media = attachTo($this->project, $admin, 'project_documents');
+
+    $consultant = memberOf(User::factory()->create(), $this->tenant, Role::Consultant);
+
+    // Same MDA, holds documents.view, and the file's tenant matches — so
+    // permission-plus-tenant-match says yes. Only the OWNER's own rule says
+    // no: ProjectPolicy::view narrows a consultant to their assignments, and
+    // without asking it, a contractor could read a rival's bill of quantities.
+    expect($this->project->isVisibleTo($consultant))->toBeFalse()
+        ->and($consultant->can('view', $media))->toBeFalse();
+});
+
+it('lets a consultant read a document of a project they ARE assigned to', function () {
+    $admin = actingAsMember(Role::MdaAdmin, $this->tenant);
+    $media = attachTo($this->project, $admin, 'project_documents');
+
+    $consultant = memberOf(User::factory()->create(), $this->tenant, Role::Consultant);
+
+    (new AssignProjectMember)(
+        $this->project,
+        $consultant,
+        ProjectRole::Consultant,
+        User::query()->whereKey($admin->getKey())->firstOrFail(),
+    );
+
+    expect(User::query()->whereKey($consultant->getKey())->firstOrFail()->can('view', $media))->toBeTrue();
+});
+
+it('serves a document to state oversight, where no tenant is bound at all', function () {
+    $officer = actingAsMember(Role::MeOfficer, $this->tenant);
+    $media = attachTo($this->project, $officer);
+
+    // The oversight surface binds no tenant, so loading the owner hits the
+    // fail-closed TenantScope. Every oversight document download used to be a
+    // permanent 403 because the policy swallowed that and answered "no owner".
+    actingWithoutTenant();
+    $stateAdmin = userWithRole(Role::StateAdmin);
+
+    expect($stateAdmin->can('view', $media))->toBeTrue();
+});
+
+it('still refuses an oversight download to a role without documents.view in the global team', function () {
+    $officer = actingAsMember(Role::MeOfficer, $this->tenant);
+    $media = attachTo($this->project, $officer);
+
+    actingWithoutTenant();
+
+    // An MDA admin holds documents.view in their WORKSPACE team and nothing
+    // globally. The oversight resolution path asks for the GLOBAL permission
+    // before it bypasses tenancy — which is the whole reason that bypass is
+    // allowed to exist.
+    $mdaAdmin = User::query()->whereKey(
+        memberOf(User::factory()->create(), $this->tenant, Role::MdaAdmin)->getKey()
+    )->firstOrFail();
+
+    actingWithoutTenant();
+
+    expect($mdaAdmin->holdsGlobalPermission('documents.view'))->toBeFalse()
+        ->and($mdaAdmin->can('view', $media))->toBeFalse();
 });

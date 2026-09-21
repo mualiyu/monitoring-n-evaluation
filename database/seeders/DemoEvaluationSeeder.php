@@ -204,7 +204,7 @@ class DemoEvaluationSeeder extends Seeder
         $blank = $blankFrom === null;
 
         foreach ((new ResolveReportTemplate)() as $section) {
-            $key = (string) ($section['key'] ?? '');
+            $key = $section['key'];
 
             if ($key === '') {
                 continue;

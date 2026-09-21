@@ -94,7 +94,7 @@ class WorkplanFactory extends Factory
     {
         return $this->state(fn (array $attributes): array => [
             'status' => WorkplanStatus::Submitted,
-            'submitted_by_id' => $submitter?->id ?? $attributes['created_by_id'],
+            'submitted_by_id' => $submitter->id ?? $attributes['created_by_id'],
             'submitted_at' => CarbonImmutable::now()->subDays(3),
             'status_changed_at' => CarbonImmutable::now()->subDays(3),
         ]);
@@ -104,7 +104,7 @@ class WorkplanFactory extends Factory
     {
         return $this->submitted()->state([
             'status' => WorkplanStatus::Approved,
-            'approved_by_id' => $approver?->id ?? User::factory(),
+            'approved_by_id' => $approver->id ?? User::factory(),
             'approved_at' => CarbonImmutable::now()->subDay(),
             'status_changed_at' => CarbonImmutable::now()->subDay(),
         ]);

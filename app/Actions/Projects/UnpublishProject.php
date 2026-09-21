@@ -64,7 +64,7 @@ class UnpublishProject
             ->performedOn($project)
             ->causedBy($actor)
             ->withProperties([
-                'published_at' => $publishedAt?->toIso8601String(),
+                'published_at' => $publishedAt->toIso8601String(),
                 'reason' => $reason,
             ])
             ->log('unpublished');

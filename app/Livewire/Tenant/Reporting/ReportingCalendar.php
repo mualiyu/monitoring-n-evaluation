@@ -217,7 +217,7 @@ class ReportingCalendar extends Component
     #[Computed]
     public function summary(): array
     {
-        $ids = $this->periods()->modelKeys();
+        $ids = $this->periods()->pluck('id')->all();
 
         if ($ids === []) {
             return [];
@@ -318,7 +318,7 @@ class ReportingCalendar extends Component
             ->visibleTo($this->user())
             // A null window (nothing generated yet) must match nothing rather
             // than every obligation the workspace has ever had.
-            ->where('reporting_period_id', $period?->id ?? 0)
+            ->where('reporting_period_id', $period->id ?? 0)
             ->when($this->projectUlid !== '', fn (Builder $q) => $q->whereIn('project_id', $this->filteredProject()))
             ->with([
                 'project:id,ulid,title,reference,physical_progress',

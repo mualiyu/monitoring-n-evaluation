@@ -130,7 +130,7 @@ class InspectionSchedule extends Component
      * LGAs") needs the visit to name which one; a single-site project has one
      * option and the field is a formality.
      *
-     * @return array<string, string>
+     * @return array<array-key, string>
      */
     #[Computed]
     public function locationOptions(): array
@@ -149,8 +149,8 @@ class InspectionSchedule extends Component
             ->mapWithKeys(fn (ProjectLocation $location): array => [
                 // An id-keyed map: <x-ui.form.select> submits the KEY, which
                 // is what chosenLocation() then resolves through the project.
-                $location->id => $location->site_name
-                    ?? ($location->is_primary ? __('Primary site') : __('Site :id', ['id' => $location->id])),
+                (string) $location->id => (string) ($location->site_name
+                    ?? ($location->is_primary ? __('Primary site') : __('Site :id', ['id' => $location->id]))),
             ])
             ->all();
     }

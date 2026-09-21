@@ -143,7 +143,7 @@ class WorkplanBoard extends Component
         $awaiting = 0;
         $budget = Money::zero();
 
-        foreach ($this->workplans() as $plan) {
+        foreach ($this->workplans()->items() as $plan) {
             $summary = WorkplanProgress::summarise($plan->activities);
             $unlinked += $summary['unlinked'];
             $budget = $budget->plus($summary['budget']);

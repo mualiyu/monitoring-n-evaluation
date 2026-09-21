@@ -40,6 +40,14 @@ use Livewire\Component;
  * Escalation is deliberately absent from the controls. It is the threshold
  * engine's rung and no human's (TransitionIssueStatus::assertActor), so there
  * is no button to render.
+ *
+ * Livewire resolves a #[Computed] method as a property, with caching; these
+ * annotations are what let static analysis see that. They mirror the methods
+ * below — keep them in step.
+ *
+ * @property-read list<IssueStatus> $availableTransitions
+ * @property-read EloquentCollection<int, IssueEvent> $timeline
+ * @property-read array<int, string> $ownerOptions
  */
 #[Layout('layouts::tenant')]
 class IssueDetail extends Component

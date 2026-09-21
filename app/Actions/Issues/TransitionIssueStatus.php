@@ -72,7 +72,7 @@ class TransitionIssueStatus
             $locked = Issue::query()->lockForUpdate()->find($issue->getKey());
 
             if ($locked === null || $locked->status !== $from) {
-                throw InvalidIssueTransition::between($locked?->status ?? $from, $to);
+                throw InvalidIssueTransition::between($locked->status ?? $from, $to);
             }
 
             $changes = [

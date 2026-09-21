@@ -97,7 +97,7 @@ class ExceptionReportFactory extends Factory
             'threshold_value' => null,
             'schedule_elapsed' => null,
             'financial_progress' => null,
-            'raised_by_id' => $raiser?->id ?? User::factory(),
+            'raised_by_id' => $raiser->id ?? User::factory(),
         ]);
     }
 
@@ -106,7 +106,7 @@ class ExceptionReportFactory extends Factory
         return $this->trigger(ExceptionTrigger::Manual)->state([
             'measured_value' => null,
             'threshold_value' => null,
-            'raised_by_id' => $raiser?->id ?? User::factory(),
+            'raised_by_id' => $raiser->id ?? User::factory(),
         ]);
     }
 
@@ -124,7 +124,7 @@ class ExceptionReportFactory extends Factory
     {
         return $this->state([
             'status' => ExceptionStatus::Acknowledged,
-            'acknowledged_by_id' => $actor?->id ?? User::factory(),
+            'acknowledged_by_id' => $actor->id ?? User::factory(),
             'acknowledged_at' => CarbonImmutable::now()->subHours(6),
         ]);
     }
@@ -133,7 +133,7 @@ class ExceptionReportFactory extends Factory
     {
         return $this->acknowledged($actor)->state([
             'status' => ExceptionStatus::Resolved,
-            'resolved_by_id' => $actor?->id ?? User::factory(),
+            'resolved_by_id' => $actor->id ?? User::factory(),
             'resolved_at' => CarbonImmutable::now(),
             'resolution_note' => 'Extension of time approved; the revised programme brings the works back inside tolerance.',
         ]);

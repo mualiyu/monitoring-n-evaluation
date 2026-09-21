@@ -53,6 +53,19 @@ use Livewire\Component;
  * composes the signed decimal string here. That is better UX than a typed
  * minus anyway: "Omission — ₦12,000,000" cannot be misread the way "-12000000"
  * can.
+ *
+ * Livewire resolves a #[Computed] method as a property, with caching; these
+ * annotations are what let static analysis see that. They mirror the methods
+ * below — keep them in step.
+ *
+ * @property-read Collection<int, Contract> $headContracts
+ * @property-read ?Contract $variedContract
+ * @property-read Collection<int, Contractor> $contractors
+ * @property-read array<string, string> $contractorOptions
+ * @property-read string $currencySymbol
+ * @property-read array<string, string> $contractOptions
+ * @property-read string $projectUrl
+ * @property-read string $projectsUrl
  */
 #[Layout('layouts::tenant')]
 class ContractCreate extends Component
@@ -472,15 +485,18 @@ class ContractCreate extends Component
             ->get(['id', 'name', 'rc_number']);
     }
 
-    /** @return array<string, string> */
+    /** @return array<array-key, string> */
     #[Computed]
     public function contractorOptions(): array
     {
-        // pluck-style id-keyed map: the KEY is the submitted value, so this
-        // select posts the contractor's id and not its name.
+        // An id-keyed map: <x-ui.form.select> submits the KEY, so this picker
+        // posts the contractor's id and never its name. The key type is
+        // array-key rather than string because PHP coerces a numeric-string
+        // key straight back to int — saying "string" here would be a comfortable
+        // fiction.
         return $this->contractors
             ->mapWithKeys(fn (Contractor $c): array => [
-                (string) $c->id => $c->name.($c->rc_number ? ' — '.$c->rc_number : ''),
+                $c->id => $c->name.($c->rc_number ? ' — '.$c->rc_number : ''),
             ])
             ->all();
     }

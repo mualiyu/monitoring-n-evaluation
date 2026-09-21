@@ -71,7 +71,7 @@ class TransitionEvaluationStatus
 
             if ($locked === null || $locked->status !== $from) {
                 throw InvalidEvaluationTransition::between(
-                    $locked?->status ?? $from,
+                    $locked->status ?? $from,
                     $to,
                 );
             }

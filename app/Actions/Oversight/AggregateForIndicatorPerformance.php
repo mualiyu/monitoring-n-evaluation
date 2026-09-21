@@ -249,7 +249,7 @@ class AggregateForIndicatorPerformance
             'tier' => $indicator->tier?->label(),
             'unit' => $indicator->unit->label(),
             'project' => $indicator->project?->title,
-            'window' => $period?->label ?? $reading->period_start->format('M Y'),
+            'window' => $period->label ?? $reading->period_start->format('M Y'),
             'period_start' => $reading->period_start->toDateString(),
             'period_end' => $reading->period_end->toDateString(),
             'baseline' => $indicator->baseline_value,

@@ -48,7 +48,7 @@ class TransitionExceptionStatus
             $locked = ExceptionReport::query()->lockForUpdate()->find($report->getKey());
 
             if ($locked === null || $locked->status !== $from) {
-                throw InvalidExceptionTransition::between($locked?->status ?? $from, $to);
+                throw InvalidExceptionTransition::between($locked->status ?? $from, $to);
             }
 
             $changes = [

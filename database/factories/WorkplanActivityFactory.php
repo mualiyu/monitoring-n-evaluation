@@ -120,7 +120,7 @@ class WorkplanActivityFactory extends Factory
     public function withIndicator(?Indicator $indicator = null): static
     {
         return $this->state([
-            'indicator_id' => $indicator?->id ?? Indicator::factory(),
+            'indicator_id' => $indicator->id ?? Indicator::factory(),
         ]);
     }
 

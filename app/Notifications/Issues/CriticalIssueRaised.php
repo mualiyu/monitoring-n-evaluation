@@ -43,7 +43,7 @@ class CriticalIssueRaised extends Notification
             ->subject(__('Critical challenge raised on :project', ['project' => $project->title]))
             ->greeting(__('Hello,'))
             ->line(__(':raiser has recorded a critical challenge against :project (:reference).', [
-                'raiser' => $this->issue->raisedBy?->name ?? __('A member of your workspace'),
+                'raiser' => $this->issue->raisedBy->name ?? __('A member of your workspace'),
                 'project' => $project->title,
                 'reference' => $project->reference,
             ]))

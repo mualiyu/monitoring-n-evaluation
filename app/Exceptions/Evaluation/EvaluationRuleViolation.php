@@ -189,4 +189,12 @@ class EvaluationRuleViolation extends DomainException
     {
         return new self('A recommendation cannot supersede itself.');
     }
+
+    public static function addresseeNotInWorkspace(): self
+    {
+        return new self(
+            'A recommendation can only be addressed to someone who belongs to this workspace — '
+            .'an evaluation finding is confidential to the entity it is about.'
+        );
+    }
 }

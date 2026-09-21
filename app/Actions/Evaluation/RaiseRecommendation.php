@@ -2,6 +2,7 @@
 
 namespace App\Actions\Evaluation;
 
+use App\Actions\Iam\CheckTenantMembership;
 use App\Enums\RecommendationStatus;
 use App\Exceptions\Evaluation\EvaluationRuleViolation;
 use App\Jobs\Evaluation\NotifyRecommendationAssigned;
@@ -114,11 +115,30 @@ class RaiseRecommendation
      */
     private function assertAddressee(array $attributes): void
     {
-        $hasUser = ($attributes['addressee_id'] ?? null) !== null;
+        $addresseeId = $attributes['addressee_id'] ?? null;
+        $hasUser = $addresseeId !== null;
         $hasBody = trim((string) ($attributes['addressee_body'] ?? '')) !== '';
 
         if (! $hasUser && ! $hasBody) {
             throw EvaluationRuleViolation::addresseeRequired();
+        }
+
+        if (! $hasUser) {
+            return;
+        }
+
+        // MEMBERSHIP, not merely existence. An evaluation finding is
+        // confidential to the MDA it is about, and the assignment
+        // notification quotes the finding verbatim in its mail subject and
+        // body — so an unvalidated user id here delivered another MDA's
+        // findings to a stranger's inbox and notification centre. Every
+        // sibling assignee field on the platform is already guarded this way
+        // (IssueDetail::saveOwner, WorkplanBuilder, WorkplanCreate); this one
+        // was the outlier.
+        $addressee = User::query()->whereKey($addresseeId)->first();
+
+        if (! $addressee instanceof User || ! app(CheckTenantMembership::class)($addressee)) {
+            throw EvaluationRuleViolation::addresseeNotInWorkspace();
         }
     }
 

@@ -192,7 +192,11 @@ class WorkplanBuilder extends Component
             ->all();
     }
 
-    /** Sibling activities this one may wait on. @return array<int, string> */
+    /**
+     * Sibling activities this one may wait on.
+     *
+     * @return array<string, string>
+     */
     #[Computed]
     public function dependencyOptions(): array
     {

@@ -59,7 +59,22 @@ use Illuminate\View\View;
 RateLimiter::for(SubmitFeedback::LIMITER, fn (Request $request): Limit => Limit::perHour(SubmitFeedback::MAX_PER_HOUR)
     ->by(SubmitFeedback::throttleKey($request->ip())));
 
-Route::middleware(PortalSecurityHeaders::class)->group(function (): void {
+/*
+| And a limiter on READS. rules/security.md requires every public endpoint to
+| be rate-limited, and only the write was: the map and the landing page are the
+| sharpest edges on the platform, because each anonymous hit runs a pinned-
+| project query with seven eager-loaded relation sets, or two uncached indexed
+| aggregates, with no session to attach a cost to.
+|
+| Keyed on a HASH of the IP for the same reason the feedback limiter is: the
+| limiter cache is not a government record store and must not end up holding a
+| readable list of who looked at which public project. Generous enough that a
+| citizen refreshing a page never notices it.
+*/
+RateLimiter::for('portal', fn (Request $request): Limit => Limit::perMinute(120)
+    ->by(SubmitFeedback::throttleKey($request->ip())));
+
+Route::middleware([PortalSecurityHeaders::class, 'throttle:portal'])->group(function (): void {
     /*
     | Landing page. Counters and the three most recent publications, so the
     | page is honest on day one: zeros and an empty state until the first

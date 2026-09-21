@@ -36,7 +36,7 @@
                         </time>
                     </div>
 
-                    @php($changes = $this->changes($entry))
+                    @php($changes = $this->changes($entry->id))
 
                     @if ($changes !== [])
                         <dl class="mt-2 space-y-1 border-l-2 border-line pl-3">

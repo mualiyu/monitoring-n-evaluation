@@ -153,7 +153,7 @@ class IssueIndex extends Component
                 'owner:id,name',
                 'raisedBy:id,name',
             ])
-            ->orderByRaw($this->severityOrdering())
+            ->orderByRaw($this->severityOrdering(), $this->severityBindings())
             // Nulls last: an issue with no deadline is not the most urgent
             // thing on the list, which is what an ascending sort would make it
             // on every database that orders NULL first.
@@ -222,13 +222,29 @@ class IssueIndex extends Component
      */
     private function severityOrdering(): string
     {
-        $cases = '';
+        // Bound parameters, not interpolation. The values are enum cases and
+        // could never be injected — but "it happens to be safe today" is how a
+        // raw string survives until somebody makes it take a filter value. The
+        // sibling ExceptionReport::scopeWorstFirst does it this way; so does
+        // this.
+        $whens = str_repeat('WHEN ? THEN ? ', count(IssueSeverity::cases()));
+
+        return 'CASE severity '.$whens.'ELSE 0 END';
+    }
+
+    /**
+     * @return list<string|int>
+     */
+    private function severityBindings(): array
+    {
+        $bindings = [];
 
         foreach (IssueSeverity::cases() as $severity) {
-            $cases .= sprintf(" WHEN '%s' THEN %d", $severity->value, -$severity->weight());
+            $bindings[] = $severity->value;
+            $bindings[] = -$severity->weight();
         }
 
-        return 'CASE severity'.$cases.' ELSE 0 END';
+        return $bindings;
     }
 
     /**
@@ -339,7 +355,7 @@ class IssueIndex extends Component
 
         $query = $this->query()
             ->with(['project:id,title,reference', 'owner:id,name', 'raisedBy:id,name'])
-            ->orderByRaw($this->severityOrdering())
+            ->orderByRaw($this->severityOrdering(), $this->severityBindings())
             ->orderBy('due_date')
             ->orderByDesc('id');
 

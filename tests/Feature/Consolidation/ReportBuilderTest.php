@@ -303,22 +303,24 @@ it('refuses a signed link to a user with no oversight authority at all', functio
 });
 
 it('writes a spreadsheet and a PDF through the same register', function () {
-    foreach ([ExportFormat::Xlsx, ExportFormat::Pdf] as $format) {
+    // Asserted inside the loop, against the artifact each call produced,
+    // rather than over a collection gathered at the end: the interesting claim
+    // is "this generate() call left THIS file on the private disk", and
+    // checking it a generation later only widens the gap between the write and
+    // the assertion.
+    foreach ([ExportFormat::Xlsx, ExportFormat::Pdf] as $index => $format) {
         Livewire::actingAs($this->stateAdmin)
             ->test(ReportBuilder::class)
             ->set('title', 'Portfolio as '.$format->value)
             ->call('generate', $format->value)
             ->assertHasNoErrors();
-    }
 
-    $exports = ReportExport::query()->orderBy('id')->get();
+        $export = ReportExport::query()->orderByDesc('id')->firstOrFail();
 
-    expect($exports)->toHaveCount(2)
-        ->and($exports->pluck('format')->map(fn ($f) => $f->value)->all())->toBe(['xlsx', 'pdf']);
-
-    foreach ($exports as $export) {
-        expect($export->isDownloadable())->toBeTrue()
-            ->and($export->mime_type)->toBe($export->format->mimeType());
+        expect(ReportExport::query()->count())->toBe($index + 1)
+            ->and($export->format)->toBe($format)
+            ->and($export->mime_type)->toBe($format->mimeType())
+            ->and($export->isDownloadable())->toBeTrue();
 
         Storage::disk('documents')->assertExists($export->path);
     }

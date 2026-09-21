@@ -62,6 +62,7 @@ use Illuminate\Support\Collection;
  *  - The database id. The portal addresses projects by ULID, so nothing on it
  *    tells a scraper how many projects an MDA has.
  */
+/** @implements Arrayable<string, mixed> */
 final readonly class PublicProjectPayload implements Arrayable
 {
     /**
@@ -131,7 +132,7 @@ final readonly class PublicProjectPayload implements Arrayable
             'goal' => $project->goal,
             'objectives' => $project->objectives,
             'entity' => $project->tenant?->name,
-            'supervising_agency' => $project->supervisingAgency?->name
+            'supervising_agency' => $project->supervisingAgency->name
                 ?? $project->supervising_agency_name,
             'sector' => $project->sector?->name,
             'type' => $project->type->label(),

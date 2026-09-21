@@ -47,7 +47,6 @@ use App\Models\User;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Notification;
-use RuntimeException;
 
 beforeEach(function () {
     Notification::fake();

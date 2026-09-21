@@ -291,18 +291,42 @@ class Project extends Model implements HasMedia
      */
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
-        // Users holding ONLY project-level roles (Consultant / FieldMonitor)
-        // in the current team see just their active assignments; everyone
-        // else sees the tenant portfolio (TenantScope already confines it).
-        $projectLevelOnly = ($user->hasRole(Role::Consultant->value)
-                || $user->hasRole(Role::FieldMonitor->value))
-            && ! $user->hasRole(Role::MdaAdmin->value)
-            && ! $user->hasRole(Role::MeOfficer->value);
+        // Project-level roles (Consultant / FieldMonitor) in the CURRENT team
+        // see only their active assignments.
+        $projectLevel = $user->hasRole(Role::Consultant->value)
+            || $user->hasRole(Role::FieldMonitor->value);
 
-        return $query->when($projectLevelOnly, fn (Builder $q) => $q
-            ->whereHas('assignments', fn (Builder $a) => $a
+        // MDA staff in the current team see the whole workspace portfolio,
+        // which the TenantScope has already confined to one MDA.
+        $workspaceStaff = $user->hasRole(Role::MdaAdmin->value)
+            || $user->hasRole(Role::MeOfficer->value);
+
+        if ($workspaceStaff) {
+            return $query;
+        }
+
+        if ($projectLevel) {
+            return $query->whereHas('assignments', fn (Builder $a) => $a
                 ->where('user_id', $user->id)
-                ->whereNull('unassigned_at')));
+                ->whereNull('unassigned_at'));
+        }
+
+        // FAIL CLOSED. A user holding no role at all in the bound team used to
+        // fall through to "everyone else sees the tenant portfolio" — which
+        // was the read half of a cross-tenant leak: an authenticated session
+        // on a foreign MDA's host (Fortify is domain-less, so logging in there
+        // succeeds even when the workspace itself answers 403) could replay a
+        // Livewire snapshot against that host and get a 200 full of the
+        // neighbour's register, because Livewire does not re-run mount() and
+        // this scope added no constraint.
+        //
+        // Oversight authority is the one legitimate way to hold no tenant role
+        // and still read: it is granted in the GLOBAL permission team, which a
+        // tenant role can never reach, and the oversight surface binds no
+        // tenant at all.
+        return $user->holdsGlobalPermission('projects.view')
+            ? $query
+            : $query->whereRaw('1 = 0');
     }
 
     /**

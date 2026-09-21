@@ -62,10 +62,77 @@ Laravel 13 + TALL, single shared MySQL DB, subdomain-per-MDA tenancy
     (`PublicProjectPayload`), publishing queues on both app surfaces, and a
     read-only portal with a Leaflet map and moderated, rate-limited feedback.
 
+## Security audit — findings closed
+
+An independent audit of the Phase 1 + 2 build, with executable proofs of
+concept. Every finding below was reproduced against a green tree and is now
+fixed and regression-tested (`tests/Feature/Auth/CrossTenantReplayTest.php`,
+`tests/Feature/Documents/VaultSecurityTest.php`).
+
+1. **CRITICAL — cross-tenant read via Livewire replay.** Fortify is registered
+   domain-less, so a user can authenticate on a foreign MDA's host even though
+   the workspace answers 403. A snapshot legitimately obtained from their own
+   workspace, POSTed to the neighbour's update endpoint, validated (the
+   checksum covers the snapshot, not the host), `ResolveTenant` bound the
+   neighbour, Livewire did not re-run `mount()` — and `Project::scopeVisibleTo`
+   added NO constraint for a user holding no role in the bound team. 200, with
+   another ministry's register. Closed twice over: `EnsureTenantMembership` is
+   now on the tenant update route, and the visibility scope fails closed.
+2. **HIGH — document IDOR.** `DocumentPanel::downloadUrl(Media $media)` was a
+   public Livewire method with an Eloquent parameter; Livewire binds those from
+   CLIENT-SUPPLIED call params, and `media` has no tenant scope and an
+   auto-increment key. It now takes a uuid and resolves from the record's own
+   collection, and `MediaPolicy` asks the OWNER's own visibility rule — permission
+   plus tenant match says nothing about a consultant's assignments.
+3. **HIGH — confidential findings to the wrong MDA.** A recommendation
+   addressee was validated as `integer`, and the notification quotes the
+   finding verbatim. Now guarded in `RaiseRecommendation` with
+   `IsWorkspaceMember` in front of it.
+4. **MEDIUM — a false tenancy claim in three docblocks.** Livewire restores a
+   model property with `newQueryForRestoration()` = `newQueryWithoutScopes()`.
+   The scope is OFF for every model property on every update. Corrected, and
+   pinned by a test in the discipline sweep.
+5. **MEDIUM — enumerable IDOR on the audit log**, same Livewire binding
+   mechanism on an unscoped, integer-keyed model. Both accessors now take an id
+   and resolve from the screen's own page.
+6. **MEDIUM — oversight document downloads were permanently 403**, because the
+   owner load hit the fail-closed scope and the policy swallowed it. The
+   oversight path now goes through `app/Actions/Oversight/ResolveMediaOwner`,
+   which asks for the global permission BEFORE it bypasses tenancy.
+7. **MEDIUM — the apex Livewire endpoint was unauthenticated.** It cannot carry
+   `auth` (the public portal has a component), so the fix is structural:
+   `MatchLivewireComponentToSurface` refuses a component whose namespace does
+   not match the surface the request arrived on.
+8. **MEDIUM — no rate limit on public portal reads.** Added, keyed on a hashed IP.
+9. **LOW — unbound raw SQL** in two orderings (values were enum cases, so not
+   injectable) — now bound, matching `ExceptionReport::scopeWorstFirst`.
+
+**Knowingly left:** `Contract::$fillable` includes `status`. Both write sites
+place the trusted value after the payload spread and document why, and the
+contract lifecycle has no chokepoint Action to move it to; changing it without
+one would be churn, not safety.
+
 ## Working conventions (hard-won, keep them)
 
-- **Verify every agent "done" signal** against the filesystem + full gate run
-  (`migrate:fresh --seed`, `pest`, `pint --test`, `phpstan --no-parallel`).
+- **Run `composer gate`, never the bare tools.** `vendor/bin/phpstan analyse
+  --no-parallel` reports NOTHING and exits non-zero: `--no-parallel` is not a
+  PHPStan option, and `laravel/pao` silences stdout, so the usage error is
+  swallowed and only a bare exit code survives. Three agents and the integrator
+  all reported "level 6, 0 errors" from runs that analysed nothing; the real
+  count was 86. See `PHPSTAN.md`. **When a checker comes back clean and you are
+  surprised, prove it with a canary** — a method declared `: int` returning a
+  string — and believe it only once you have seen the tool fail.
+- **Verify every agent "done" signal** against the filesystem and a full gate run.
+- **A first-class callable of an Eloquent SCOPE is a silent bug.**
+  `Model::someScope(...)` handed to `ofMany()` starts a FRESH query and
+  discards the builder it was given, so the constraint quietly does nothing.
+  It looks tidier than a closure and passes static analysis. When a scope needs
+  to be visible to the type checker, give the model a real Builder class
+  (`app/Models/Builders/`) — that is what `IndicatorReadingBuilder` is for.
+- **Concurrent `pest` processes share `Storage::fake()`.** Every process roots
+  the fake disk at the same `storage/framework/testing/disks/documents` and
+  cleans it on entry, so parallel runs delete each other's artifacts mid-test.
+  Run the suite once, or expect phantom failures in the media tests.
 - **Write the class, then register its route.** A route pointing at a class that
   does not exist yet throws at REGISTRATION, so it does not break one screen —
   it takes the whole application down, including every other module's tests.

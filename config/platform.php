@@ -146,6 +146,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Annual work plans (manual §5)
+    |--------------------------------------------------------------------------
+    | The manual's rule is that every work-plan activity hangs off an output
+    | indicator. Whether that is ENFORCED at approval is a state's own call —
+    | a state still building its results framework cannot approve anything if
+    | the rule is switched on before the indicators exist — so it is a setting,
+    | and TransitionWorkplanStatus reads it through SettingsRepository.
+    */
+
+    'workplans' => [
+        // Refuse approval while any activity carries no output indicator.
+        'require_output_indicator' => false,
+        // The person who submits a plan may not also approve it.
+        'require_separate_approver' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Evaluation (plan §4 — OECD-DAC criteria)
     |--------------------------------------------------------------------------
     | The criteria an evaluation is scored against, and the band boundaries

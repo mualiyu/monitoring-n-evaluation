@@ -355,3 +355,29 @@ it('leaves global reference tables unscoped, as cross-MDA aggregation requires',
             ->and($models[$table]['scoped'] ?? false)->toBeFalse();
     }
 });
+
+/*
+|--------------------------------------------------------------------------
+| What the global scope does NOT cover
+|--------------------------------------------------------------------------
+| Three components used to carry, as a security argument, the claim that a
+| Livewire model property "re-hydrates through its own global scope". It does
+| not, and a comment is a bad place to keep a belief nobody checks — so the
+| belief is checked here instead.
+*/
+
+it('records that Livewire restores a model property with global scopes OFF', function () {
+    $restoration = new ReflectionMethod(Model::class, 'newQueryForRestoration');
+    $body = implode('', array_slice(
+        file($restoration->getFileName()) ?: [],
+        $restoration->getStartLine() - 1,
+        $restoration->getEndLine() - $restoration->getStartLine() + 1,
+    ));
+
+    // Livewire's ModelSynth hydrates through this method. If Laravel ever
+    // changes it to apply scopes, this test fails — and the components'
+    // docblocks, which currently warn that the scope is OFF, become wrong in
+    // the safe direction and should be revisited.
+    expect($body)->toContain('newQueryWithoutScopes')
+        ->and($body)->not->toContain('newQuery()');
+});

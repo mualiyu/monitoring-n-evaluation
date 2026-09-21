@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
+use RuntimeException;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
@@ -42,7 +43,7 @@ class AttachGeneratedDocument
      * @param  string  $title  the display name, e.g. "Commencement notice — WKS/2026/001"
      */
     public function __invoke(
-        Model&HasMedia $model,
+        HasMedia&Model $model,
         string $collection,
         string $contents,
         string $title,
@@ -91,18 +92,37 @@ class AttachGeneratedDocument
             ]);
         }
 
-        $media = $model->addMediaFromString($contents)
+        // Written to a temp file and added as a FILE rather than through
+        // addMediaFromString(): that helper lives on medialibrary's trait, not
+        // on the HasMedia interface this Action accepts, and adding it here
+        // would mean typing the parameter as a concrete trait consumer. The
+        // path below is ours, never the caller's, and is cleaned up after.
+        $temporary = tempnam(sys_get_temp_dir(), 'generated-document-');
+
+        if ($temporary === false) {
+            throw new RuntimeException('Unable to create a temporary file for the generated document.');
+        }
+
+        file_put_contents($temporary, $contents);
+
+        try {
+            $media = $model->addMedia($temporary)
             // Generated name on disk, exactly as for an upload — nothing
             // user-controlled ever reaches the filesystem.
-            ->usingFileName(Str::ulid()->toBase32().'.'.$this->safeExtension($extension))
-            ->usingName(Str::limit($title, 120, ''))
-            ->withCustomProperties([
-                'generated' => true,
-                'generated_by_id' => $actor->id,
-                'generated_by_name' => $actor->name,
-                'generated_at' => now()->toIso8601String(),
-            ])
-            ->toMediaCollection($collection, config('documents.disk'));
+                ->usingFileName(Str::ulid()->toBase32().'.'.$this->safeExtension($extension))
+                ->usingName(Str::limit($title, 120, ''))
+                ->withCustomProperties([
+                    'generated' => true,
+                    'generated_by_id' => $actor->id,
+                    'generated_by_name' => $actor->name,
+                    'generated_at' => now()->toIso8601String(),
+                ])
+                ->toMediaCollection($collection, config('documents.disk'));
+        } finally {
+            if (is_file($temporary)) {
+                @unlink($temporary);
+            }
+        }
 
         // The audit line: a document that entered the vault without a human
         // choosing it still has to answer "who caused this, and when".

@@ -61,7 +61,7 @@
                             size="sm"
                             variant="secondary"
                             icon="arrow-down-tray"
-                            :href="$this->downloadUrl($document)"
+                            :href="$this->downloadUrl($document->uuid)"
                         >{{ __('Download') }}</x-ui.button>
 
                         @can('delete', $document)

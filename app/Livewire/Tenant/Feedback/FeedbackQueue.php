@@ -237,10 +237,6 @@ class FeedbackQueue extends Component
 
         $feedback = $this->authorizeOn($this->responding, 'respond');
 
-        if (! $feedback instanceof Feedback) {
-            return;
-        }
-
         $this->failure = null;
 
         try {
@@ -272,10 +268,6 @@ class FeedbackQueue extends Component
     ): void {
         $feedback = $this->authorizeOn($ulid, 'moderate');
 
-        if (! $feedback instanceof Feedback) {
-            return;
-        }
-
         $this->failure = null;
 
         try {
@@ -297,7 +289,7 @@ class FeedbackQueue extends Component
      * record. Another MDA's ULID resolves to nothing here, which is a 404 and
      * not a 403 — confirming the record exists is itself a leak.
      */
-    private function authorizeOn(string $ulid, string $ability): ?Feedback
+    private function authorizeOn(string $ulid, string $ability): Feedback
     {
         $feedback = $this->resolve($ulid);
 

@@ -4,8 +4,8 @@ namespace App\Models;
 
 use App\Enums\IndicatorReadingStatus;
 use App\Enums\ReadingSourceType;
+use App\Models\Builders\IndicatorReadingBuilder;
 use App\Models\Concerns\BelongsToTenant;
-use App\Support\SettingsRepository;
 use Carbon\CarbonImmutable;
 use Database\Factories\IndicatorReadingFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -161,6 +161,14 @@ class IndicatorReading extends Model
     }
 
     /**
+     * @param  \Illuminate\Database\Query\Builder  $query
+     */
+    public function newEloquentBuilder($query): IndicatorReadingBuilder
+    {
+        return new IndicatorReadingBuilder($query);
+    }
+
+    /**
      * Figures that have cleared data-quality review — the only ones a report
      * or a public surface may quote.
      *
@@ -173,26 +181,6 @@ class IndicatorReading extends Model
             IndicatorReadingStatus::Validated,
             IndicatorReadingStatus::Published,
         ]);
-    }
-
-    /**
-     * The readings that COUNT towards achievement on a dashboard. Whether an
-     * un-reviewed figure counts is a policy decision a state takes for itself
-     * (`indicators.require_validation_for_dashboards`), so it is answered here
-     * once rather than re-decided by every screen that draws a traffic light.
-     *
-     * Drafts never count either way: a draft is a working note, not a return.
-     *
-     * @param  Builder<self>  $query
-     * @return Builder<self>
-     */
-    public function scopeCountable(Builder $query): Builder
-    {
-        if (app(SettingsRepository::class)->bool('indicators', 'require_validation_for_dashboards', true)) {
-            return $query->validated();
-        }
-
-        return $query->where('status', '!=', IndicatorReadingStatus::Draft);
     }
 
     /**
@@ -210,6 +198,7 @@ class IndicatorReading extends Model
      * The identity the separation guard weighs: whoever measured the figure,
      * falling back to whoever filed it. A reviewer may be neither.
      */
+    /** @return list<int> */
     public function originators(): array
     {
         return array_values(array_filter([$this->recorded_by_id, $this->submitted_by_id]));

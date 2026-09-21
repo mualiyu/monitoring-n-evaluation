@@ -187,7 +187,7 @@ class TenantOnboarding extends Component
         return $options;
     }
 
-    /** @return array<string, string> */
+    /** @return array<array-key, string> */
     #[Computed]
     public function sectorOptions(): array
     {

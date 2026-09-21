@@ -4,6 +4,8 @@ namespace App\Notifications\Reporting;
 
 use App\Enums\ProgressReportStatus;
 use App\Models\ProgressReport;
+use App\Notifications\Concerns\NotificationCategories;
+use App\Notifications\Concerns\RespectsPreferences;
 use App\Support\SurfaceUrl;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -25,6 +27,8 @@ use Illuminate\Notifications\Notification;
  */
 class ProgressReportChainUpdated extends Notification
 {
+    use RespectsPreferences;
+
     public function __construct(
         private readonly ProgressReport $report,
         private readonly ProgressReportStatus $to,
@@ -34,7 +38,12 @@ class ProgressReportChainUpdated extends Notification
     /** @return list<string> */
     public function via(object $notifiable): array
     {
-        return ['database', 'mail'];
+        return $this->preferredChannels($notifiable, ['database', 'mail']);
+    }
+
+    public function notificationCategory(): string
+    {
+        return NotificationCategories::REPORTING;
     }
 
     public function toMail(object $notifiable): MailMessage

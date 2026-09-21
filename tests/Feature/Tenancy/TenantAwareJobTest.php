@@ -69,7 +69,10 @@ it('drops queued work for a deactivated tenant instead of executing it', functio
     $tenant = Tenant::factory()->create();
     $job = app(CurrentTenant::class)->runAs($tenant, fn () => new RecordTenantJob);
 
-    $tenant->update(['is_active' => false]);
+    // Property write, not ->update(): is_active is guarded-by-omission on
+    // Tenant — only App\Actions\Oversight\SetTenantActive assigns it, so no
+    // ->update($request->validated()) can deactivate a workspace by accident.
+    $tenant->forceFill(['is_active' => false])->save();
 
     dispatch($job);
 

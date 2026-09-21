@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\IndicatorReadingStatus;
 use App\Enums\ReadingSourceType;
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\SettingsRepository;
 use Carbon\CarbonImmutable;
 use Database\Factories\IndicatorReadingFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
@@ -21,9 +23,13 @@ use Spatie\Activitylog\Support\LogOptions;
  * An actual measurement of an indicator for one period — tenant-owned.
  *
  * Submission, validation and publication are three distinct hops with three
- * distinct actors: the collector submits, a data-quality reviewer validates,
- * and publication is a further explicit act, so nothing reaches a public
- * surface merely by being entered.
+ * distinct actors: the collector records and submits, a data-quality reviewer
+ * validates, and publication is a further explicit act, so nothing reaches a
+ * public surface merely by being entered.
+ *
+ * `status` and every chain stamp on this model are written ONLY by
+ * App\Actions\Indicators\TransitionIndicatorReadingStatus — which is why none
+ * of them is fillable and why that class is greppable as the one chokepoint.
  *
  * Readings attach to certified and closed projects too — post-completion
  * monitoring is exactly when outcome indicators get their most useful values.
@@ -38,17 +44,25 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property ReadingSourceType $source_type
  * @property string|null $collection_method
  * @property string|null $notes
+ * @property int|null $recorded_by_id
  * @property IndicatorReadingStatus $status
  * @property int|null $submitted_by_id
  * @property CarbonImmutable|null $submitted_at
  * @property int|null $validated_by_id
  * @property CarbonImmutable|null $validated_at
  * @property CarbonImmutable|null $published_at
+ * @property int|null $published_by_id
+ * @property int|null $rejected_by_id
+ * @property CarbonImmutable|null $rejected_at
+ * @property string|null $rejection_reason
  */
+// Guarded by omission: status, the chain stamps (submitted/validated/
+// published/rejected) and their actor columns are NOT fillable. The
+// transition Action assigns them by forceFill, so no ->update($validated)
+// anywhere can walk a figure past data-quality review.
 #[Fillable([
     'indicator_id', 'period_start', 'period_end', 'actual_value', 'source_type',
-    'collection_method', 'notes', 'status', 'submitted_by_id', 'submitted_at',
-    'validated_by_id', 'validated_at',
+    'collection_method', 'notes', 'recorded_by_id',
 ])]
 class IndicatorReading extends Model
 {
@@ -58,17 +72,21 @@ class IndicatorReading extends Model
     use HasFactory, LogsActivity, SoftDeletes;
 
     /**
-     * Everything auditable (rules/architecture.md). `published_at` is not
-     * fillable — publication is an explicit act, never a form payload — so it
-     * is named back explicitly here: "who put this figure on a public surface,
-     * and when" is precisely the question a disputed number provokes.
+     * Everything auditable (rules/architecture.md). `logFillable()` covers the
+     * figure itself; the explicit list adds back the chain columns that are
+     * deliberately NOT fillable — "who put this number past review, and when"
+     * is precisely the question a disputed figure provokes.
      */
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
             ->useLogName('indicator_readings')
             ->logFillable()
-            ->logOnly(['published_at'])
+            ->logOnly([
+                'status', 'submitted_by_id', 'submitted_at', 'validated_by_id',
+                'validated_at', 'published_at', 'published_by_id',
+                'rejected_by_id', 'rejected_at', 'rejection_reason',
+            ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges();
     }
@@ -91,6 +109,7 @@ class IndicatorReading extends Model
             'submitted_at' => 'immutable_datetime',
             'validated_at' => 'immutable_datetime',
             'published_at' => 'immutable_datetime',
+            'rejected_at' => 'immutable_datetime',
         ];
     }
 
@@ -106,6 +125,12 @@ class IndicatorReading extends Model
     }
 
     /** @return BelongsTo<User, $this> */
+    public function recordedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'recorded_by_id');
+    }
+
+    /** @return BelongsTo<User, $this> */
     public function submittedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'submitted_by_id');
@@ -117,9 +142,27 @@ class IndicatorReading extends Model
         return $this->belongsTo(User::class, 'validated_by_id');
     }
 
+    /** @return BelongsTo<User, $this> */
+    public function publishedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'published_by_id');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function rejectedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by_id');
+    }
+
+    /** @return HasMany<IndicatorReadingEvent, $this> */
+    public function events(): HasMany
+    {
+        return $this->hasMany(IndicatorReadingEvent::class);
+    }
+
     /**
      * Figures that have cleared data-quality review — the only ones a report
-     * or dashboard may quote.
+     * or a public surface may quote.
      *
      * @param  Builder<self>  $query
      * @return Builder<self>
@@ -130,5 +173,45 @@ class IndicatorReading extends Model
             IndicatorReadingStatus::Validated,
             IndicatorReadingStatus::Published,
         ]);
+    }
+
+    /**
+     * The readings that COUNT towards achievement on a dashboard. Whether an
+     * un-reviewed figure counts is a policy decision a state takes for itself
+     * (`indicators.require_validation_for_dashboards`), so it is answered here
+     * once rather than re-decided by every screen that draws a traffic light.
+     *
+     * Drafts never count either way: a draft is a working note, not a return.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeCountable(Builder $query): Builder
+    {
+        if (app(SettingsRepository::class)->bool('indicators', 'require_validation_for_dashboards', true)) {
+            return $query->validated();
+        }
+
+        return $query->where('status', '!=', IndicatorReadingStatus::Draft);
+    }
+
+    /**
+     * Sitting in the Data Quality Reviewer's queue.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeAwaitingValidation(Builder $query): Builder
+    {
+        return $query->where('status', IndicatorReadingStatus::Submitted);
+    }
+
+    /**
+     * The identity the separation guard weighs: whoever measured the figure,
+     * falling back to whoever filed it. A reviewer may be neither.
+     */
+    public function originators(): array
+    {
+        return array_values(array_filter([$this->recorded_by_id, $this->submitted_by_id]));
     }
 }

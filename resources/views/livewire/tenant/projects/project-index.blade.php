@@ -23,7 +23,7 @@
             >{{ __('Export CSV') }}</x-ui.button>
 
             @if ($canCreate)
-                <x-ui.button size="sm" icon="plus" :href="url('/projects/create')">
+                <x-ui.button size="sm" icon="plus" :href="route('tenant.projects.create')">
                     {{ __('Register project') }}
                 </x-ui.button>
             @endif
@@ -162,7 +162,7 @@
                     >
                         <x-slot:actions>
                             @if ($canCreate)
-                                <x-ui.button icon="plus" :href="url('/projects/create')">
+                                <x-ui.button icon="plus" :href="route('tenant.projects.create')">
                                     {{ __('Register project') }}
                                 </x-ui.button>
                             @else
@@ -193,7 +193,7 @@
                             $isLate = $deliveryDate
                                 && $deliveryDate->isPast()
                                 && ! in_array($project->status->value, ['completed', 'certified', 'closed', 'cancelled'], true);
-                            $detailUrl = url('/projects/'.$project->ulid);
+                            $detailUrl = route('tenant.projects.show', $project);
                         @endphp
 
                         <x-ui.table.row wire:key="project-{{ $project->ulid }}">
@@ -259,7 +259,7 @@
                                     <x-ui.dropdown.item icon="eye" :href="$detailUrl">{{ __('View project') }}</x-ui.dropdown.item>
 
                                     @can('update', $project)
-                                        <x-ui.dropdown.item icon="pencil-square" :href="url('/projects/'.$project->ulid.'/edit')">
+                                        <x-ui.dropdown.item icon="pencil-square" :href="route('tenant.projects.edit', $project)">
                                             {{ __('Edit details') }}
                                         </x-ui.dropdown.item>
                                     @endcan

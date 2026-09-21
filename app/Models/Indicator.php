@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\IndicatorReadingStatus;
+use App\Enums\IndicatorTier;
 use App\Enums\IndicatorUnit;
 use App\Enums\MeasurementFrequency;
 use App\Enums\TargetType;
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\IndicatorAchievement;
 use Carbon\CarbonImmutable;
 use Database\Factories\IndicatorFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -14,6 +17,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
@@ -21,13 +25,15 @@ use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * An indicator definition — tenant-owned, carrying the full definition sheet
- * from the M&E manual (definition, unit, frequency, data source, collector,
- * means of verification, baseline, target type, SMART justification).
+ * from the M&E manual (definition, focus, unit, frequency, data source,
+ * collector, means of verification, baseline, target type, SMART statement).
  *
  * `project_id` is nullable: MDA-programme indicators exist that belong to no
- * single project. `result_framework_id` and `tier` are present and
- * unconstrained so the Phase 2 results framework attaches without migrating
- * readings.
+ * single project. `result_framework_id` attaches the indicator to the result
+ * statement it measures, `parent_indicator_id` to the measure it rolls up
+ * into, and `indicator_definition_id` to the state library entry it was
+ * instantiated from (null for a locally defined indicator the library has no
+ * entry for yet — the Q4 indicator retreat is where those get promoted).
  *
  * BASELINE IS MANDATORY AT ACTIVATION, NOT BY `NOT NULL`. A NOT NULL baseline
  * would force a placeholder into every half-drafted indicator, and a
@@ -42,9 +48,12 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property int $tenant_id
  * @property int|null $project_id
  * @property int|null $result_framework_id
- * @property string|null $tier
+ * @property int|null $parent_indicator_id
+ * @property int|null $indicator_definition_id
+ * @property IndicatorTier|null $tier
  * @property string $name
  * @property string|null $definition
+ * @property string|null $focus
  * @property IndicatorUnit $unit
  * @property MeasurementFrequency $measurement_frequency
  * @property string|null $data_source
@@ -61,7 +70,8 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property int $created_by_id
  */
 #[Fillable([
-    'project_id', 'result_framework_id', 'tier', 'name', 'definition', 'unit',
+    'project_id', 'result_framework_id', 'parent_indicator_id',
+    'indicator_definition_id', 'tier', 'name', 'definition', 'focus', 'unit',
     'measurement_frequency', 'data_source', 'means_of_verification',
     'responsible_collector_id', 'responsible_collector_text', 'baseline_value',
     'baseline_date', 'baseline_source', 'target_type', 'smart_justification',
@@ -74,9 +84,6 @@ class Indicator extends Model
     /** @use HasFactory<IndicatorFactory> */
     use HasFactory, LogsActivity, SoftDeletes;
 
-    /** Result-framework tiers (Phase 2 promotes these to an enum + FK). */
-    public const TIERS = ['pdo', 'intermediate', 'output'];
-
     protected static function booted(): void
     {
         static::creating(function (Indicator $indicator): void {
@@ -87,6 +94,7 @@ class Indicator extends Model
     protected function casts(): array
     {
         return [
+            'tier' => IndicatorTier::class,
             'unit' => IndicatorUnit::class,
             'measurement_frequency' => MeasurementFrequency::class,
             'target_type' => TargetType::class,
@@ -124,6 +132,44 @@ class Indicator extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * The result statement this indicator measures.
+     *
+     * @return BelongsTo<ResultFramework, $this>
+     */
+    public function resultFramework(): BelongsTo
+    {
+        return $this->belongsTo(ResultFramework::class);
+    }
+
+    /**
+     * The state library entry this was instantiated from. Named
+     * `libraryDefinition` and not `definition`, because `definition` is a
+     * column on this table — the indicator's own definition text.
+     *
+     * @return BelongsTo<IndicatorDefinition, $this>
+     */
+    public function libraryDefinition(): BelongsTo
+    {
+        return $this->belongsTo(IndicatorDefinition::class, 'indicator_definition_id');
+    }
+
+    /**
+     * The measure this one rolls up into (output → intermediate → PDO).
+     *
+     * @return BelongsTo<self, $this>
+     */
+    public function parentIndicator(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_indicator_id');
+    }
+
+    /** @return HasMany<self, $this> */
+    public function childIndicators(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_indicator_id');
     }
 
     /**
@@ -173,5 +219,78 @@ class Indicator extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeAtTier(Builder $query, IndicatorTier $tier): Builder
+    {
+        return $query->where('tier', $tier);
+    }
+
+    /**
+     * Where this indicator stands against its target — the ONE definition,
+     * computed in App\Support\IndicatorAchievement and never re-derived in a
+     * Blade file or a dashboard query.
+     *
+     * Relies on `latestTarget` / `latestCountableReading` being eager-loaded
+     * by the caller where it is used in a list (preventLazyLoading is on
+     * outside production, so an N+1 here fails loudly rather than quietly).
+     */
+    public function achievement(): IndicatorAchievement
+    {
+        return IndicatorAchievement::for(
+            $this,
+            $this->latestCountableReading?->actual_value,
+            $this->latestTarget?->target_value,
+        );
+    }
+
+    /**
+     * The most recent target, whatever its period — what a register row shows
+     * when it has room for one number.
+     *
+     * @return HasOne<IndicatorTarget, $this>
+     */
+    public function latestTarget(): HasOne
+    {
+        // ofMany with an explicit tie-break on id: two targets can share a
+        // period_end (an annual target and the Q4 milestone that closes on the
+        // same day), and "whichever the database happened to return" is not a
+        // number to put in front of a governor.
+        return $this->hasOne(IndicatorTarget::class)->ofMany(['period_end' => 'max', 'id' => 'max']);
+    }
+
+    /**
+     * The most recent reading that may be QUOTED. Which readings qualify is a
+     * policy decision (`indicators.require_validation_for_dashboards`), so it
+     * is answered once, in IndicatorReading::scopeCountable().
+     *
+     * @return HasOne<IndicatorReading, $this>
+     */
+    public function latestCountableReading(): HasOne
+    {
+        // The constraint goes INSIDE ofMany's subquery, not on the outer
+        // relation: applied outside, the subquery would pick the latest
+        // reading of any status and the outer filter would then discard it,
+        // reporting "no data" for an indicator that has a perfectly good
+        // validated figure from the period before.
+        return $this->hasOne(IndicatorReading::class)->ofMany(
+            ['period_end' => 'max', 'id' => 'max'],
+            fn (Builder $query) => $query->countable(),
+        );
+    }
+
+    /**
+     * Readings this indicator is still waiting on a reviewer for — what the
+     * detail screen and the validation queue both count.
+     *
+     * @return HasMany<IndicatorReading, $this>
+     */
+    public function submittedReadings(): HasMany
+    {
+        return $this->readings()->where('status', IndicatorReadingStatus::Submitted);
     }
 }

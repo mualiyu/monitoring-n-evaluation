@@ -26,12 +26,26 @@
         ? (new \App\Actions\Oversight\CountReportsAwaitingReview)(auth()->user())
         : null;
 
-    $navigation = $navigation ?? [
+    /*
+     | Sidebar structure. Same two rules as the tenant shell: every entry
+     | points at a NAMED route (a url('/…') string 404s silently; route()
+     | fails loudly at render), and every entry is permission-gated so nobody
+     | is offered a door that answers 403.
+     |
+     | Permissions here resolve in the GLOBAL team — no tenant is bound on
+     | this surface — which is exactly why an MDA admin cannot reach it: a
+     | tenant role grants nothing globally.
+     */
+    $user = auth()->user();
+    $permits = fn (?string $permission): bool => $permission === null
+        || ($user !== null && $user->can($permission));
+
+    $navigation = $navigation ?? collect([
         ['items' => [
             [
                 'label' => __('State dashboard'),
                 'icon' => 'squares',
-                'href' => url('/'),
+                'href' => route('oversight.dashboard'),
                 'active' => request()->routeIs('oversight.dashboard'),
             ],
         ]],
@@ -39,50 +53,176 @@
             [
                 'label' => __('All projects'),
                 'icon' => 'folder',
-                'href' => url('/portfolio'),
+                'href' => route('oversight.portfolio.index'),
                 'active' => request()->routeIs('oversight.portfolio.*') || request()->routeIs('oversight.projects.*'),
+                'can' => 'oversight.portfolio.view',
             ],
-            ['label' => __('Budget performance'), 'icon' => 'banknotes', 'href' => '#', 'disabled' => true],
-            ['label' => __('Sector analysis'), 'icon' => 'chart-bar', 'href' => '#', 'disabled' => true],
-            ['label' => __('Project map'), 'icon' => 'map-pin', 'href' => '#', 'disabled' => true],
+            [
+                'label' => __('Work plans'),
+                'icon' => 'clipboard-check',
+                'href' => route('oversight.workplans.index'),
+                'active' => request()->routeIs('oversight.workplans.*'),
+                'can' => 'workplans.view',
+            ],
+            [
+                'label' => __('Vendor registry'),
+                'icon' => 'building-office',
+                'href' => route('oversight.contractors.index'),
+                'active' => request()->routeIs('oversight.contractors.*'),
+                'can' => 'contractors.view',
+            ],
         ]],
         ['label' => __('Assurance'), 'items' => [
             [
                 'label' => __('Reporting compliance'),
                 'icon' => 'chart-bar',
-                'href' => url('/compliance'),
+                'href' => route('oversight.compliance.index'),
                 'active' => request()->routeIs('oversight.compliance.*'),
+                'can' => 'oversight.compliance.view',
             ],
             [
-                'label' => __('Reports awaiting review'),
+                'label' => __('Reports desk'),
                 'icon' => 'document-text',
-                'href' => url('/compliance'),
+                'href' => route('oversight.reports.index'),
+                'active' => request()->routeIs('oversight.reports.index'),
                 // Null (no oversight authority) and zero (nothing pending)
                 // both render without a chip — a badge that says "0" is noise.
                 'badge' => $awaitingReview ?: null,
+                'can' => 'oversight.reports.view',
             ],
-            ['label' => __('Evaluations'), 'icon' => 'clipboard-check', 'href' => '#', 'disabled' => true],
-            ['label' => __('Publishing queue'), 'icon' => 'globe', 'href' => '#', 'badge' => 3, 'disabled' => true],
+            [
+                'label' => __('Data validation'),
+                'icon' => 'shield-check',
+                'href' => route('oversight.validation.index'),
+                'active' => request()->routeIs('oversight.validation.*'),
+                'can' => 'oversight.validation.review',
+            ],
+            [
+                'label' => __('Site inspections'),
+                'icon' => 'clipboard-check',
+                'href' => route('oversight.inspections.index'),
+                'active' => request()->routeIs('oversight.inspections.*'),
+                'can' => 'inspections.view',
+            ],
+            [
+                'label' => __('Exception reports'),
+                'icon' => 'exclamation-triangle',
+                'href' => route('oversight.exceptions.index'),
+                'active' => request()->routeIs('oversight.exceptions.*'),
+                'can' => 'exceptions.view',
+            ],
+            [
+                'label' => __('Certificates'),
+                'icon' => 'check-circle',
+                'href' => route('oversight.certificates.index'),
+                'active' => request()->routeIs('oversight.certificates.*'),
+                'can' => 'certificates.view',
+            ],
+            [
+                'label' => __('Evaluations'),
+                'icon' => 'eye',
+                'href' => route('oversight.evaluations.index'),
+                'active' => request()->routeIs('oversight.evaluations.*'),
+                'can' => 'evaluations.view',
+            ],
+            [
+                'label' => __('Recommendations'),
+                'icon' => 'flag',
+                'href' => route('oversight.recommendations.index'),
+                'active' => request()->routeIs('oversight.recommendations.*'),
+                'can' => 'recommendations.view',
+            ],
+        ]],
+        ['label' => __('Consolidation'), 'items' => [
+            [
+                'label' => __('Consolidation workspace'),
+                'icon' => 'inbox',
+                'href' => route('oversight.consolidation.index'),
+                'active' => request()->routeIs('oversight.consolidation.*'),
+                'can' => 'oversight.consolidation.manage',
+            ],
+            [
+                'label' => __('Report builder'),
+                'icon' => 'adjustments',
+                'href' => route('oversight.reports.builder'),
+                'active' => request()->routeIs('oversight.reports.builder'),
+                'can' => 'oversight.reports.view',
+            ],
+            [
+                'label' => __('Generated exports'),
+                'icon' => 'arrow-down-tray',
+                'href' => route('oversight.exports.index'),
+                'active' => request()->routeIs('oversight.exports.*'),
+                'can' => 'oversight.reports.view',
+            ],
+        ]],
+        ['label' => __('Transparency'), 'items' => [
+            [
+                'label' => __('Publishing queue'),
+                'icon' => 'globe',
+                'href' => route('oversight.publishing.index'),
+                'active' => request()->routeIs('oversight.publishing.*'),
+                'can' => 'projects.publish',
+            ],
+            [
+                'label' => __('Stakeholder feedback'),
+                'icon' => 'chat-bubble',
+                'href' => route('oversight.feedback.index'),
+                'active' => request()->routeIs('oversight.feedback.*'),
+                'can' => 'feedback.view',
+            ],
         ]],
         ['label' => __('Administration'), 'items' => [
-            ['label' => __('Entities & workspaces'), 'icon' => 'building-office', 'href' => '#', 'disabled' => true],
             [
-                'label' => __('Vendor registry'),
-                'icon' => 'clipboard-check',
-                'href' => url('/contractors'),
-                'active' => request()->routeIs('oversight.contractors.*'),
+                'label' => __('Entities & workspaces'),
+                'icon' => 'building-office',
+                'href' => route('oversight.entities.index'),
+                'active' => request()->routeIs('oversight.entities.*'),
+                'can' => 'tenants.view',
             ],
             [
                 'label' => __('Users & roles'),
                 'icon' => 'users',
-                'href' => url('/users'),
+                'href' => route('oversight.users.index'),
                 'active' => request()->routeIs('oversight.users.*'),
+                'can' => 'users.view',
             ],
-            ['label' => __('Indicator library'), 'icon' => 'adjustments', 'href' => '#', 'disabled' => true],
-            ['label' => __('Audit log'), 'icon' => 'shield-check', 'href' => '#', 'disabled' => true],
-            ['label' => __('Instance settings'), 'icon' => 'cog', 'href' => '#', 'disabled' => true],
+            [
+                'label' => __('Indicator library'),
+                'icon' => 'chart-bar',
+                'href' => route('oversight.indicator-library.index'),
+                'active' => request()->routeIs('oversight.indicator-library.*'),
+                'can' => 'indicators.library.manage',
+            ],
+            [
+                'label' => __('Audit log'),
+                'icon' => 'shield-check',
+                'href' => route('oversight.audit.index'),
+                'active' => request()->routeIs('oversight.audit.*'),
+                'can' => 'oversight.audit.view',
+            ],
+            [
+                'label' => __('Instance settings'),
+                'icon' => 'cog',
+                'href' => route('oversight.settings.index'),
+                'active' => request()->routeIs('oversight.settings.*'),
+                'can' => 'settings.manage',
+            ],
         ]],
-    ];
+    ])
+        // Drop unreachable items, then drop any group left empty — an
+        // ExecutiveViewer holds almost none of these, and a sidebar of
+        // headings over nothing is worse than a short sidebar.
+        ->map(fn (array $group): array => [
+            ...$group,
+            'items' => array_values(array_filter(
+                $group['items'] ?? [],
+                fn (array $item): bool => $permits($item['can'] ?? null),
+            )),
+        ])
+        ->filter(fn (array $group): bool => $group['items'] !== [])
+        ->values()
+        ->all();
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
@@ -144,6 +284,14 @@
                 </span>
 
                 <p class="min-w-0 flex-1 truncate text-sm font-medium text-ink-muted">{{ $title ?? '' }}</p>
+
+                {{--
+                    The oversight shell had no notification control at all, so
+                    an escalated overdue return or a flagged inspection reached
+                    the secretariat only by email. Same component as the MDA
+                    shell — one notification centre, two surfaces.
+                --}}
+                <livewire:shared.notification-bell />
 
                 <x-ui.theme-toggle size="sm" />
                 <x-ui.user-menu :role="$userRole ?? __('Oversight administrator')" />

@@ -189,6 +189,14 @@ class PermissionSeeder extends Seeder
             'recommendations.view' => [...$oversight, ...$mdaStaff],
             'recommendations.manage' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, ...$mdaStaff],
 
+            // Stakeholder feedback (portal). Moderation is an MDA act over its
+            // own projects and a state act everywhere; the field roles hold
+            // none of it — a contractor moderating complaints about their own
+            // work is the conflict of interest the portal exists to expose.
+            'feedback.view' => [...$oversight, ...$mdaStaff],
+            'feedback.moderate' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, ...$mdaStaff],
+            'feedback.respond' => [RoleEnum::SuperAdmin, RoleEnum::StateAdmin, ...$mdaStaff],
+
             // Oversight
             'oversight.portfolio.view' => $oversight,
             'oversight.compliance.view' => $oversight,

@@ -48,6 +48,19 @@ class ProjectLocationFactory extends Factory
         ]);
     }
 
+    /**
+     * A site at an exact fix. Decimal strings, never floats: coordinates are
+     * printed on a government report and must round-trip unchanged, and the
+     * geofence judgement is made against them.
+     */
+    public function coordinates(string $latitude, string $longitude): static
+    {
+        return $this->state([
+            'latitude' => $latitude,
+            'longitude' => $longitude,
+        ]);
+    }
+
     /** A site recorded before anyone captured a GPS reading. */
     public function withoutCoordinates(): static
     {

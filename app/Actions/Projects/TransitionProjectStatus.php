@@ -2,6 +2,7 @@
 
 namespace App\Actions\Projects;
 
+use App\Actions\Lifecycle\Concerns\FindsFinalInspection;
 use App\Enums\ProjectStatus;
 use App\Enums\Role;
 use App\Events\Projects\ProjectStatusChanged;
@@ -31,6 +32,8 @@ use Illuminate\Support\Facades\Gate;
  */
 class TransitionProjectStatus
 {
+    use FindsFinalInspection;
+
     public function __invoke(
         Project $project,
         ProjectStatus $to,
@@ -149,10 +152,16 @@ class TransitionProjectStatus
             throw ProjectRuleViolation::completionBeforeFullProgress($project->physical_progress);
         }
 
-        // Phase 2 guard point, wired now and switched by a setting: when final
-        // inspections exist, certification will require one.
+        // The instance's own rule: a certificate that rests on nobody having
+        // visited the site is the failure the monitoring lifecycle exists to
+        // prevent. Narrowed from the Phase-1 placeholder that refused
+        // certification whenever the setting was on at all — site inspections
+        // now exist, so the question is whether THIS project has a completed
+        // final one, asked through the same soft-dependency read
+        // IssueCompletionCertificate uses (no FK, behind Schema::hasTable).
         if ($to === ProjectStatus::Certified
-            && app(SettingsRepository::class)->bool('monitoring', 'require_final_inspection_for_certification', false)) {
+            && app(SettingsRepository::class)->bool('monitoring', 'require_final_inspection_for_certification', false)
+            && ! $this->hasFinalInspection($project)) {
             throw ProjectRuleViolation::certificationRequiresFinalInspection();
         }
 

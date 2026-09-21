@@ -194,7 +194,7 @@ Leaflet via Vite. No Filament — custom UI per the design system.
       (see `docs/design/tenancy-core.md`)
 - [x] Spatie permission teams (team = tenant, sentinel 0 global) + `AssignRole`
       contract action + role seeder
-- [ ] Auth surfaces: per-surface login UI, 2FA for admin roles, tenant_user
+- [x] Auth surfaces: per-surface login UI, 2FA for admin roles, tenant_user
       membership gate (`EnsureTenantMembership`)
 - [x] Design system: OKLCH token system (light/dark, per-tenant override ready),
       28 `<x-ui.*>` components, three app shells, styleguide at `/styleguide`
@@ -203,28 +203,30 @@ Leaflet via Vite. No Filament — custom UI per the design system.
 - [x] Tenancy isolation + role isolation + discipline test harness (33 tests)
 - [ ] CI workflow (pint --test, phpstan, pest) once repo has a remote
 
-### Phase 1 — MVP: Registry + Progress Reporting (≈ 4 weeks)
-- [ ] Project registry + contractors + contracts + documents
-- [ ] Project assignment (consultants) + invitation flows
-- [ ] Progress reports with approval chain + deadline engine v1 (periods, reminders, overdue)
-- [ ] Basic indicator support: per-project indicators, targets, readings, traffic lights
-- [ ] MDA dashboard + oversight portfolio dashboard (summary tables v1)
-- [ ] Issues/challenges register
-- [ ] Notifications (database + mail)
+### Phase 1 — MVP: Registry + Progress Reporting (≈ 4 weeks) — **complete**
+- [x] Project registry + contractors + contracts + documents
+- [x] Project assignment (consultants) + invitation flows
+- [x] Progress reports with approval chain + deadline engine v1 (periods, reminders, overdue)
+- [x] Basic indicator support: per-project indicators, targets, readings, traffic lights
+- [x] MDA dashboard + oversight portfolio dashboard (live aggregates, no rollup table yet)
+- [x] Issues/challenges register
+- [x] Notifications (database + mail) + per-user preferences + notification centre
 
-### Phase 2 — Full M&E lifecycle (≈ 5 weeks)
-- [ ] Inspections (all 5 types) with checklists, GPS/photo evidence, field trip reports
-- [ ] Commencement notices + completion certification
-- [ ] Full results-framework builder (logframe tiers, indicator library, validation
+### Phase 2 — Full M&E lifecycle (≈ 5 weeks) — **complete**
+- [x] Inspections (all 5 types) with checklists, GPS/photo evidence, field trip reports
+- [x] Commencement notices + completion certification
+- [x] Full results-framework builder (logframe tiers, indicator library, validation
       workflow + Data Quality Reviewer role)
-- [ ] Workplans + Gantt
-- [ ] Evaluations + recommendations register
-- [ ] Consolidation workspace + state APR export + compliance league table
-- [ ] Exception reports + threshold alerts
-- [ ] Report builder with PDF/Excel exports
+- [x] Workplans + Gantt
+- [x] Evaluations + recommendations register
+- [x] Consolidation workspace + state APR export + compliance league table
+- [x] Exception reports + threshold alerts
+- [x] Report builder with PDF/Excel exports
 
 ### Phase 3 — Reach (≈ 4 weeks)
-- [ ] Public transparency portal (published projects, map, feedback)
+- [x] Public transparency portal (published projects, map, feedback) — **delivered early**,
+      with the publishing gate that governs it (`PublicProjectPayload` whitelist, oversight
+      and MDA publishing queues, moderated feedback)
 - [ ] Offline PWA for inspections/progress capture (service worker, background sync,
       versioned JSON API `routes/api.php`, conflict policy: server-wins + draft rescue)
 - [ ] SMS channel (Termii or similar), stakeholder register + dissemination lists

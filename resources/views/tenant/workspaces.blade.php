@@ -74,7 +74,7 @@
                 <p class="mt-3 font-mono text-xs break-all text-ink-muted">{{ request()->getHost() }}</p>
 
                 <div class="mt-4 border-t border-line pt-4">
-                    <x-ui.button variant="secondary" size="sm" :href="url('/')" icon="squares" class="w-full sm:w-auto">
+                    <x-ui.button variant="secondary" size="sm" :href="route('tenant.dashboard')" icon="squares" class="w-full sm:w-auto">
                         {{ __('Go to dashboard') }}
                     </x-ui.button>
                 </div>
@@ -128,7 +128,7 @@
                 :description="__('You have access to one entity. Access to another workspace is granted by that entity’s administrator, who will send you an invitation by email.')"
             >
                 <x-slot:actions>
-                    <x-ui.button variant="secondary" :href="url('/')" icon="arrow-left">
+                    <x-ui.button variant="secondary" :href="route('tenant.dashboard')" icon="arrow-left">
                         {{ __('Back to dashboard') }}
                     </x-ui.button>
                 </x-slot:actions>

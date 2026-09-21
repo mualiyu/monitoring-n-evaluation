@@ -3,6 +3,8 @@
 namespace App\Notifications\Reporting;
 
 use App\Models\ReportObligation;
+use App\Notifications\Concerns\NotificationCategories;
+use App\Notifications\Concerns\RespectsPreferences;
 use App\Support\InstanceTime;
 use App\Support\SurfaceUrl;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -20,6 +22,8 @@ use Illuminate\Notifications\Notification;
  */
 class ReportObligationEscalated extends Notification
 {
+    use RespectsPreferences;
+
     public function __construct(
         private readonly ReportObligation $obligation,
         private readonly int $stage,
@@ -29,7 +33,12 @@ class ReportObligationEscalated extends Notification
     /** @return list<string> */
     public function via(object $notifiable): array
     {
-        return ['database', 'mail'];
+        return $this->preferredChannels($notifiable, ['database', 'mail']);
+    }
+
+    public function notificationCategory(): string
+    {
+        return NotificationCategories::REPORTING;
     }
 
     public function toMail(object $notifiable): MailMessage

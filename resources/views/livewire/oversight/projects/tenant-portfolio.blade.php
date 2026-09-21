@@ -7,10 +7,10 @@
     <x-ui.page-header
         :title="$tenant->name"
         :description="__('This entity’s full portfolio, as recorded in its workspace.')"
-        :back="url('/portfolio')"
+        :back="route('oversight.portfolio.index')"
         :back-label="__('All entities')"
         :breadcrumbs="[
-            ['label' => __('State portfolio'), 'href' => url('/portfolio')],
+            ['label' => __('State portfolio'), 'href' => route('oversight.portfolio.index')],
             ['label' => $tenant->name],
         ]"
     >
@@ -100,7 +100,7 @@
                     @foreach ($this->projects as $project)
                         <x-ui.table.row wire:key="tenant-project-{{ $project->ulid }}">
                             <x-ui.table.cell :label="__('Project')" primary>
-                                <a href="{{ url('/projects/'.$project->ulid) }}" class="rounded hover:underline">{{ $project->title }}</a>
+                                <a href="{{ route('oversight.projects.show', $project->ulid) }}" class="rounded hover:underline">{{ $project->title }}</a>
                                 <span class="mt-0.5 block font-mono text-xs font-normal text-ink-muted">{{ $project->reference }}</span>
                             </x-ui.table.cell>
 
@@ -122,7 +122,7 @@
                             </x-ui.table.cell>
 
                             <x-ui.table.cell align="right">
-                                <x-ui.button variant="ghost" size="sm" trailing-icon="chevron-right" :href="url('/projects/'.$project->ulid)">
+                                <x-ui.button variant="ghost" size="sm" trailing-icon="chevron-right" :href="route('oversight.projects.show', $project->ulid)">
                                     {{ __('Open') }}
                                 </x-ui.button>
                             </x-ui.table.cell>

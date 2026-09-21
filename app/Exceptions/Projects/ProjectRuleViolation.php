@@ -51,8 +51,8 @@ class ProjectRuleViolation extends DomainException
     public static function certificationRequiresFinalInspection(): self
     {
         return new self(
-            'Certification requires a final inspection, but site inspections arrive in Phase 2 — turn off '
-            .'`monitoring.require_final_inspection_for_certification` until then.'
+            'This instance requires a completed final inspection before a project may be certified '
+            .'(`monitoring.require_final_inspection_for_certification`), and none is recorded against this project.'
         );
     }
 

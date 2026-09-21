@@ -7,6 +7,19 @@
     file" are the two questions an M&E officer asks in the same minute.
 --}}
 @php
+    // route(), not url(): the tenant surface lives on a {tenant} subdomain, so
+    // every link carries its workspace explicitly. route() fails loudly on a
+    // missing route or a wrong binding key; a hand-built string 404s silently.
+    $workspace = ['tenant' => app(\App\Tenancy\CurrentTenant::class)->getOrFail()->slug];
+    $reportUrl = fn ($report) => route('tenant.reports.show', [...$workspace, 'report' => $report]);
+    $projectUrl = fn ($project) => route('tenant.projects.show', [...$workspace, 'project' => $project]);
+    $createUrl = route('tenant.reports.create', $workspace);
+    $fileUrl = fn ($obligation) => route('tenant.reports.create', [
+        ...$workspace,
+        'project' => $obligation->project->ulid,
+        'period' => $obligation->reportingPeriod->id,
+    ]);
+
     $canCreate = auth()->user()?->can('create', \App\Models\ProgressReport::class) ?? false;
     // Whether the waiver affordance exists on this screen at all. The per-row
     // check below is the precise one (it matches the obligation's workspace);
@@ -25,13 +38,27 @@
             <x-ui.button
                 variant="secondary"
                 size="sm"
+                icon="inbox"
+                :href="route('tenant.reports.inbox', $workspace)"
+            >{{ __('My inbox') }}</x-ui.button>
+
+            <x-ui.button
+                variant="secondary"
+                size="sm"
+                icon="calendar-days"
+                :href="route('tenant.reports.calendar', $workspace)"
+            >{{ __('Calendar') }}</x-ui.button>
+
+            <x-ui.button
+                variant="secondary"
+                size="sm"
                 icon="arrow-down-tray"
                 wire:click="export"
                 loading="export"
             >{{ $showingObligations ? __('Export obligations') : __('Export returns') }}</x-ui.button>
 
             @if ($canCreate)
-                <x-ui.button size="sm" icon="plus" :href="url('/reports/create')">
+                <x-ui.button size="sm" icon="plus" :href="$createUrl">
                     {{ __('Start a report') }}
                 </x-ui.button>
             @endif
@@ -206,7 +233,7 @@
                                 <x-ui.table.cell :label="__('Project')" primary>
                                     @if ($obligation->project)
                                         <a
-                                            href="{{ url('/projects/'.$obligation->project->ulid) }}"
+                                            href="{{ $projectUrl($obligation->project) }}"
                                             class="rounded hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                                         >{{ $obligation->project->title }}</a>
                                         <span class="mt-0.5 block font-mono text-xs font-normal text-ink-muted">
@@ -270,14 +297,14 @@
                                                 variant="ghost"
                                                 size="sm"
                                                 trailing-icon="chevron-right"
-                                                :href="url('/reports/'.$obligation->progressReport?->ulid)"
+                                                :href="$reportUrl($obligation->progressReport)"
                                             >{{ __('Open return') }}</x-ui.button>
                                         @elseif ($canCreate && $obligation->project)
                                             <x-ui.button
                                                 variant="secondary"
                                                 size="sm"
                                                 icon="pencil-square"
-                                                :href="url('/reports/create?project='.$obligation->project->ulid.'&period='.$obligation->reportingPeriod->id)"
+                                                :href="$fileUrl($obligation)"
                                             >{{ __('File it') }}</x-ui.button>
                                         @endif
 
@@ -341,7 +368,7 @@
                         >
                             <x-slot:actions>
                                 @if ($canCreate)
-                                    <x-ui.button icon="plus" :href="url('/reports/create')">
+                                    <x-ui.button icon="plus" :href="$createUrl">
                                         {{ __('Start a report') }}
                                     </x-ui.button>
                                 @endif
@@ -365,7 +392,7 @@
                             <x-ui.table.row wire:key="report-{{ $report->ulid }}">
                                 <x-ui.table.cell :label="__('Project')" primary>
                                     <a
-                                        href="{{ url('/reports/'.$report->ulid) }}"
+                                        href="{{ $reportUrl($report) }}"
                                         class="rounded hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                                     >{{ $report->project->title }}</a>
                                     <span class="mt-0.5 block font-mono text-xs font-normal text-ink-muted">
@@ -400,7 +427,7 @@
                                         variant="ghost"
                                         size="sm"
                                         trailing-icon="chevron-right"
-                                        :href="url('/reports/'.$report->ulid)"
+                                        :href="$reportUrl($report)"
                                     >{{ __('Open') }}</x-ui.button>
                                 </x-ui.table.cell>
                             </x-ui.table.row>

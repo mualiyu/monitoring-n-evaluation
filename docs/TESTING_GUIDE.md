@@ -37,12 +37,17 @@ Same pattern: `mda-admin@health.mne.test`, `me-officer@health.mne.test`,
 
 ## What to test, feature by feature
 
-1. **Public portal** — open http://mne.test. No login, honest zero-counters (nothing is
-   published yet), transparency messaging. `/styleguide` shows every UI component.
+1. **Public portal** — open http://mne.test. No login. Browse `/projects`, `/map`,
+   `/reports` and submit feedback at `/feedback`. Nothing appears until an MDA or
+   oversight **publishes** a project (item 22), which is the point: the portal serves
+   published rows only, and an unpublished project is a 404 on every portal route.
+   `/styleguide` shows every UI component.
 2. **Tenant-branded login** — http://works.mne.test/login: note the tab title
    "Sign in · Ministry of Works & Infrastructure". Log in as `me-officer@works.mne.test`.
-   You land on the MDA dashboard (KPI tiles are placeholder figures until the Projects
-   screens land).
+   You land on the MDA dashboard. The KPI tiles are **live** — active projects,
+   contract value monitored, reports awaiting action, overdue submissions — read from
+   this workspace and narrowed by role, so a consultant's dashboard counts only their
+   own assignments.
 3. **Tenant isolation (the big one)** — while signed in at works, visit
    http://health.mne.test. You get a **403 that lists your real workspaces** — not
    Health's data, and not a confusing 404. Sign in at health as
@@ -97,6 +102,61 @@ Same pattern: `mda-admin@health.mne.test`, `me-officer@health.mne.test`,
     `app(App\Tenancy\CurrentTenant::class)->runAs(App\Models\Tenant::where('slug','works')->first(), fn () => App\Models\Project::with('locations','contracts.contractor')->get(['id','title','status','physical_progress']))`
     10 projects across the two MDAs: multi-site, co-funded, contract-variation and
     cross-MDA-supervised cases included.
+
+15. **Progress reporting desk** — `/reports` (register), `/reports/inbox` (what is
+    waiting for *you*, with separation of duties: you never see your own submission as
+    approvable), `/reports/create` (autosaving wizard), `/calendar` (the statutory
+    calendar with this workspace's obligations, due and overdue). File one as
+    `consultant@works.mne.test`, review as `me-officer@…`, approve as `mda-admin@…` —
+    and note the approval is what moves the project's attested figures.
+16. **Site inspections** — `/inspections` then `/inspections/create`. Open one and use
+    `/inspections/{id}/conduct` on a phone-width window: checklist responses, GPS
+    capture (allow location, or watch it degrade gracefully when you deny it), observed
+    progress, photo evidence. A photograph's GPS and capture time are lifted out of its
+    EXIF and shown as "Geotagged". A field monitor files it; they cannot review it.
+17. **Issues & exception reports** — `/issues` is the challenges register;
+    `/exceptions` is what the nightly threshold sweep raises by itself. Force one:
+    `php artisan tinker` → `app(App\Tenancy\CurrentTenant::class)->runAs(App\Models\Tenant::where('slug','works')->first(), fn () => app(App\Actions\Issues\EvaluateProjectThresholds::class)())`
+    — a project far enough behind the clock raises a schedule-slippage report that
+    **explains itself**: the measurement, the tolerance and the date it was taken. Run
+    it twice; it does not duplicate.
+18. **Commencement & certification** — `/projects/{id}/commencement` serves the notice
+    (PDF, stored privately, downloaded through a signed link) and
+    `/projects/{id}/certify` walks the preconditions before issuing a completion
+    certificate. `/certificates` is the register. Only an MDA admin may sign.
+19. **Results framework** — `/indicators` (register with traffic lights),
+    `/projects/{id}/framework` (the impact → outcome → output tree, instantiated from
+    the state indicator library). Capture a reading, submit it, then sign in as
+    `dq@mne.test` at oversight `/validation` to validate it: **the person who records a
+    reading can never validate it**, which is the whole reason the Data Quality
+    Reviewer role exists.
+20. **Work plans & Gantt** — `/workplans`, then open one and switch to `/gantt`. Try it
+    at 360px: the activity column stays put and the chart scrolls. Activities missing an
+    output indicator are flagged — that is the manual's rule, made visible.
+21. **Evaluations & recommendations** — `/evaluations` runs the lifecycle (ToR, team,
+    criteria scores, the structured report), and `/recommendations` is the follow-up
+    register — the thing that makes an evaluation a control rather than a document. The
+    evaluation lead cannot approve their own evaluation.
+22. **Publishing gate** — `/publishing` in the workspace, or oversight `/publishing`
+    for the state-wide queue. Publish a project, then reload http://mne.test/projects:
+    it appears. Unpublish it: it disappears from the list, the map, the counters and
+    its own detail page (a 404, not a 403 — a 403 would confirm the record exists).
+    Only whitelisted fields ever cross into public view.
+23. **Consolidation & the state APR** — oversight `/consolidation` as `state@mne.test`:
+    open a consolidation for a period, compile the per-MDA figures, write the narrative,
+    approve it (which **freezes the snapshot** — change an MDA's return afterwards and
+    the approved figures do not move), then publish. `/reports/builder` is the ad-hoc
+    builder, `/exports` the artifact register with re-download.
+24. **Administration** — oversight `/entities` provisions a new MDA workspace (reserved
+    subdomains and duplicate slugs are refused, and the first admin is invited through
+    the normal invitation flow), `/settings` tunes the instance policy numbers,
+    `/audit` is the append-only activity trail — with no way to edit or delete a line.
+    `/notifications` and the topbar bell are live on both surfaces; mute a category in
+    `/settings/notifications` and watch that channel go quiet.
+25. **Stakeholder feedback moderation** — submit feedback on the public portal, then
+    moderate it at `/feedback` in the owning workspace (or oversight `/feedback` for
+    everything). Pending feedback is never publicly visible; a published response
+    appears under it on the portal.
 
 ## Developer checks
 

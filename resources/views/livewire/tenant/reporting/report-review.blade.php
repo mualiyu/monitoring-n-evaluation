@@ -7,16 +7,26 @@
     director wants before signing.
 --}}
 @php
+    // route(), not url(): the tenant surface lives on a {tenant} subdomain, so
+    // every link carries its workspace explicitly. route() fails loudly on a
+    // missing route or a wrong binding key; a hand-built string 404s silently.
+    $workspace = ['tenant' => app(\App\Tenancy\CurrentTenant::class)->getOrFail()->slug];
+
     $report = $this->report;
     $project = $report->project;
     $blocked = $this->blockedReason();
+
+    // Evidence freezes when the return leaves the author's hands: the vault is
+    // writable only while they may still edit the return itself (draft or
+    // returned). Evidence that can change after review is not evidence (§5).
+    $evidenceReadonly = ! $this->canEdit();
 @endphp
 
 <div>
     <x-ui.page-header
         :title="__(':window progress report', ['window' => $report->reportingPeriod->label])"
         :description="$project->title.' · '.$project->reference"
-        :back="url('/reports')"
+        :back="route('tenant.reports.index', $workspace)"
         :back-label="__('Back to progress reports')"
     >
         <x-slot:actions>
@@ -122,6 +132,18 @@
                     </div>
                 </div>
             </x-ui.card>
+
+            {{-- The evidence behind the account: site photographs, valuations,
+                 measurement sheets. Read-only unless the return is back with
+                 its author — the shared vault panel enforces the same upload
+                 rules here as everywhere else. --}}
+            <livewire:shared.document-panel
+                :model="$report"
+                collection="report_evidence"
+                :readonly="$evidenceReadonly"
+                :heading="__('Evidence filed with this return')"
+                :key="'report-evidence-'.$report->ulid"
+            />
         </div>
 
         {{-- ------------------------------------------------------------ --}}
@@ -188,7 +210,7 @@
                                 class="w-full"
                                 variant="secondary"
                                 icon="pencil-square"
-                                :href="url('/reports/'.$report->ulid.'/edit')"
+                                :href="route('tenant.reports.edit', [...$workspace, 'report' => $report])"
                             >{{ __('Continue editing') }}</x-ui.button>
                         @endif
 

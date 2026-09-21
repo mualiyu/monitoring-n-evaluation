@@ -17,11 +17,11 @@
     <x-ui.page-header
         :title="__('Edit project details')"
         :description="$project->title"
-        :back="url('/projects/'.$project->ulid)"
+        :back="route('tenant.projects.show', $project)"
         :back-label="__('Back to project')"
         :breadcrumbs="[
-            ['label' => __('Projects'), 'href' => url('/projects')],
-            ['label' => $project->reference, 'href' => url('/projects/'.$project->ulid)],
+            ['label' => __('Projects'), 'href' => route('tenant.projects.index')],
+            ['label' => $project->reference, 'href' => route('tenant.projects.show', $project)],
             ['label' => __('Edit')],
         ]"
     />
@@ -237,7 +237,7 @@
                 {{ __('Save changes') }}
             </x-ui.button>
 
-            <x-ui.button variant="ghost" :href="url('/projects/'.$project->ulid)">
+            <x-ui.button variant="ghost" :href="route('tenant.projects.show', $project)">
                 {{ __('Cancel') }}
             </x-ui.button>
 

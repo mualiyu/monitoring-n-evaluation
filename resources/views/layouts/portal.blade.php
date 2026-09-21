@@ -1,5 +1,5 @@
 {{--
-    Public transparency portal shell (www / apex).
+    Public transparency portal shell (apex domain).
 
     Top-nav rather than sidebar: citizens arrive on one page from a link, not from a
     workspace. Read-only surface — no auth chrome beyond the feedback call to action.
@@ -10,35 +10,37 @@
       $portalNav       [['label' => …, 'href' => …, 'active' => bool], …]
       $footerColumns   [['heading' => …, 'links' => [['label' => …, 'href' => …]]]]
       $footerNote      small print under the columns
+      $leaflet         true on the ONE screen that needs a map library
 
     Escape hatches for branding: @@section('footer-brand') and @@section('footer-extra').
+
+    LEAFLET LIVES HERE AND NOWHERE ELSE. The stack decision puts the map library on a
+    CDN; App\Http\Middleware\PortalSecurityHeaders allow-lists exactly that origin for
+    this surface, and no other layout on the platform allows it. It is opt-in per page
+    (`$leaflet`) because a 150KB map library on the feedback form is 150KB of somebody's
+    data bundle spent on nothing. The map itself degrades to a plain list in <noscript>,
+    so the library never becomes load-bearing.
 --}}
 @php
     $tenant = $tenant ?? null;
+    $leaflet = $leaflet ?? false;
 
     $portalNav = $portalNav ?? [
-        ['label' => __('Home'), 'href' => '#', 'active' => true],
-        ['label' => __('Projects'), 'href' => '#'],
-        ['label' => __('Sectors'), 'href' => '#'],
-        ['label' => __('Published reports'), 'href' => '#'],
-        ['label' => __('Give feedback'), 'href' => '#'],
+        ['label' => __('Home'), 'href' => route('portal.home'), 'active' => request()->routeIs('portal.home')],
+        ['label' => __('Projects'), 'href' => route('portal.projects.index'), 'active' => request()->routeIs('portal.projects.*')],
+        ['label' => __('Map'), 'href' => route('portal.map'), 'active' => request()->routeIs('portal.map')],
+        ['label' => __('Published reports'), 'href' => route('portal.reports.index'), 'active' => request()->routeIs('portal.reports.*')],
+        ['label' => __('Give feedback'), 'href' => route('portal.feedback.create'), 'active' => request()->routeIs('portal.feedback.*')],
     ];
 
     $footerColumns = $footerColumns ?? [
         ['heading' => __('Explore'), 'links' => [
-            ['label' => __('All published projects'), 'href' => '#'],
-            ['label' => __('Budget performance'), 'href' => '#'],
-            ['label' => __('Project map'), 'href' => '#'],
+            ['label' => __('All published projects'), 'href' => route('portal.projects.index')],
+            ['label' => __('Project map'), 'href' => route('portal.map')],
+            ['label' => __('Published reports'), 'href' => route('portal.reports.index')],
         ]],
         ['heading' => __('Participate'), 'links' => [
-            ['label' => __('Report an issue on a project'), 'href' => '#'],
-            ['label' => __('Rate a completed project'), 'href' => '#'],
-            ['label' => __('Frequently asked questions'), 'href' => '#'],
-        ]],
-        ['heading' => __('About'), 'links' => [
-            ['label' => __('How monitoring works'), 'href' => '#'],
-            ['label' => __('Data & publishing policy'), 'href' => '#'],
-            ['label' => __('Accessibility'), 'href' => '#'],
+            ['label' => __('Report an issue on a project'), 'href' => route('portal.feedback.create')],
         ]],
     ];
 @endphp
@@ -46,13 +48,33 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
 <head>
     @include('layouts.partials.head')
+
+    @if ($leaflet)
+        {{-- Pinned version + subresource integrity: an immutable unpkg URL and a
+             hash the browser checks before executing anything. A CDN that starts
+             serving something else serves it to nobody. --}}
+        <link
+            rel="stylesheet"
+            href="{{ \App\Http\Middleware\PortalSecurityHeaders::LEAFLET_CDN }}/leaflet@1.9.4/dist/leaflet.css"
+            integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        />
+        <script
+            defer
+            src="{{ \App\Http\Middleware\PortalSecurityHeaders::LEAFLET_CDN }}/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        ></script>
+    @endif
 </head>
 <body class="flex min-h-dvh flex-col bg-surface font-sans text-ink">
     <x-ui.skip-link />
 
     <header x-data="{ menuOpen: false }" class="sticky top-0 z-30 border-b border-line bg-surface-raised/90 backdrop-blur">
         <div class="mx-auto flex h-16 w-full max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
-            <x-ui.brand :tenant="$tenant" :href="url('/')" :subtitle="__('Public project transparency')" class="flex-1" />
+            <x-ui.brand :tenant="$tenant" :href="route('portal.home')" :subtitle="__('Public project transparency')" class="flex-1" />
 
             <nav aria-label="{{ __('Portal navigation') }}" class="hidden items-center gap-1 md:flex">
                 @foreach ($portalNav as $link)
@@ -83,6 +105,9 @@
             </button>
         </div>
 
+        {{-- The mobile menu is rendered by Alpine on click, so it must also exist
+             without JavaScript: a portal whose navigation needs a runtime is a
+             portal that does not work on half the phones it is built for. --}}
         <nav
             id="portal-navigation"
             x-show="menuOpen"
@@ -107,6 +132,20 @@
                 @endforeach
             </ul>
         </nav>
+
+        <noscript>
+            <nav aria-label="{{ __('Portal navigation') }}" class="border-t border-line px-4 py-3 md:hidden">
+                <ul class="space-y-1">
+                    @foreach ($portalNav as $link)
+                        <li>
+                            <a href="{{ $link['href'] ?? '#' }}" class="block rounded-lg px-3 py-2 text-sm font-medium text-ink-muted hover:bg-neutral-soft hover:text-ink">
+                                {{ $link['label'] ?? '' }}
+                            </a>
+                        </li>
+                    @endforeach
+                </ul>
+            </nav>
+        </noscript>
     </header>
 
     <main id="main-content" tabindex="-1" class="flex-1 focus:outline-none">

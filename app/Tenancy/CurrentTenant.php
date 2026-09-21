@@ -5,6 +5,7 @@ namespace App\Tenancy;
 use App\Models\Tenant;
 use App\Tenancy\Exceptions\TenantNotResolvedException;
 use Closure;
+use Illuminate\Support\Facades\URL;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
@@ -32,12 +33,44 @@ class CurrentTenant
     {
         $this->tenant = $tenant;
         $this->syncPermissionTeam($tenant->id);
+        $this->syncUrlDefaults($tenant->slug);
     }
 
     public function forget(): void
     {
         $this->tenant = null;
         $this->syncPermissionTeam(self::GLOBAL_TEAM);
+        $this->syncUrlDefaults(null);
+    }
+
+    /**
+     * Bind (or clear) the {tenant} domain parameter for URL generation.
+     *
+     * Tenant routes live on a {tenant}.<domain> wildcard, so EVERY
+     * route('tenant.…') call needs that parameter. ResolveTenant sets it for
+     * an HTTP request, which was enough for as long as tenant URLs were only
+     * ever generated inside one — but they are not: a Livewire component test
+     * never crosses HTTP, and a queued job rendering a notification has no
+     * request at all. Both then threw UrlGenerationException on a link that is
+     * perfectly correct in the browser.
+     *
+     * Binding it here instead means the parameter follows the tenant context
+     * wherever that context is established, which is the only place that knows
+     * it. That is what makes route() — which fails loudly on a missing route
+     * or a wrong binding key — usable in views, in place of hand-built
+     * url('/path/'.$id) strings that 404 silently in production.
+     */
+    private function syncUrlDefaults(?string $slug): void
+    {
+        $defaults = URL::getDefaultParameters();
+
+        if ($slug === null) {
+            unset($defaults['tenant']);
+        } else {
+            $defaults['tenant'] = $slug;
+        }
+
+        URL::defaults($defaults);
     }
 
     public function bound(): bool

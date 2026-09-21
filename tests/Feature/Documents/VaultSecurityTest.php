@@ -82,12 +82,20 @@ it('refuses a mime type the collection does not allow', function () {
 
 it('refuses a file over the collection ceiling', function () {
     $officer = actingAsMember(Role::MeOfficer, $this->tenant);
-    $ceiling = app(DocumentCollections::class)->maxKilobytes('project_documents');
+
+    // The ceiling is lowered for the test rather than building a 20MB string
+    // to exceed the real one: the code path under test is the `max:` rule
+    // DocumentCollections derives from config, and proving it fires at 1KB
+    // proves it fires at 20MB — without asking PHP to hold 20MB of padding.
+    config(['documents.collections.project_documents.max_kb' => 1]);
+
+    expect(app(DocumentCollections::class)->validationRules('project_documents'))
+        ->toContain('max:1');
 
     app(AttachDocument::class)(
         $this->project,
         'project_documents',
-        fakePdf('huge.pdf', $ceiling + 1024),
+        fakePdf('huge.pdf', 4),
         $officer,
     );
 })->throws(ValidationException::class);

@@ -6,6 +6,12 @@
     not be told so in a tooltip.
 --}}
 @php
+    // route(), not url(): the tenant surface lives on a {tenant} subdomain, so
+    // every link carries its workspace explicitly. route() fails loudly on a
+    // missing route or a wrong binding key; a hand-built string 404s silently.
+    $workspace = ['tenant' => app(\App\Tenancy\CurrentTenant::class)->getOrFail()->slug];
+    $deskUrl = route('tenant.reports.index', $workspace);
+
     $report = $this->report;
     $obligation = $this->obligation;
 @endphp
@@ -14,7 +20,7 @@
     <x-ui.page-header
         :title="__('File a progress report')"
         :description="__('Report what was actually built and spent in this window. Figures you file here move the project record once they are approved.')"
-        :back="url('/reports')"
+        :back="$deskUrl"
         :back-label="__('Back to progress reports')"
     />
 
@@ -186,7 +192,7 @@
 
             <x-slot:footer>
                 <div class="flex flex-wrap justify-between gap-2">
-                    <x-ui.button variant="ghost" icon="arrow-left" :href="url('/reports')">
+                    <x-ui.button variant="ghost" icon="arrow-left" :href="$deskUrl">
                         {{ __('Leave — the draft is saved') }}
                     </x-ui.button>
 
@@ -335,6 +341,20 @@
                     {{ __('It will still be accepted, and it will be recorded as filed late on the state compliance report.') }}
                 </x-ui.alert>
             @endif
+
+            <div class="mt-6 border-t border-line pt-4">
+                {{-- The last thing before filing, because it is the last thing
+                     that can still be changed: attachments freeze at
+                     submission (§5). The shared vault panel enforces the mime,
+                     size and role rules from config/documents.php. --}}
+                <livewire:shared.document-panel
+                    :model="$report"
+                    collection="report_evidence"
+                    :readonly="! $report->isEditable()"
+                    :heading="__('Evidence for this return')"
+                    :key="'report-evidence-'.$report->ulid"
+                />
+            </div>
 
             <x-slot:footer>
                 <div class="flex flex-wrap justify-between gap-2">

@@ -196,12 +196,25 @@ it('links the compliance board from the oversight sidebar, with a live queue bad
 
     $this->current->forget();
 
-    $this->actingAs($this->stateAdmin)
+    // The board is still linked as "Reporting compliance". The live queue
+    // badge now hangs off "Reports desk" rather than off a second link to the
+    // same board: the cross-MDA reports desk exists now, and that is where
+    // somebody clicking "two returns are waiting" actually needs to land.
+    $page = $this->actingAs($this->stateAdmin)
         ->get(oversightUrl('/'))
         ->assertOk()
         ->assertSee(oversightUrl('/compliance'))
         ->assertSee('Reporting compliance')
-        ->assertSee('Reports awaiting review');
+        ->assertSee(oversightUrl('/reports'))
+        ->assertSee('Reports desk');
+
+    // The COUNT, not merely the label. A badge that renders but never counts
+    // is exactly the failure this test exists to catch, and the two returns
+    // seeded above sit in two different MDAs — so a 2 here is also the
+    // cross-tenant read working.
+    expect((string) $page->getContent())
+        ->toMatch('/badge[^>]*>\s*2\s*</')
+        ->not->toMatch('/badge[^>]*>\s*0\s*</');
 });
 
 it('renders an honest empty board when no window has opened yet', function () {

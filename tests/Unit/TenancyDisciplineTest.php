@@ -62,6 +62,30 @@ const TENANCY_DISCIPLINE_RULES = [
     '->fresh(' => [],
 ];
 
+/**
+ * Does this line use the guarded token?
+ *
+ * Substring matching is deliberately blunt — but blunt is not the same as
+ * wrong. `TenantMembership::` as a plain substring also matches
+ * `CheckTenantMembership::class`, which is a DIFFERENT class (the sanctioned
+ * Iam action other modules are supposed to ask through), so the sweep was
+ * failing the very call it exists to encourage.
+ *
+ * A left word boundary fixes exactly that and nothing else: a pattern that
+ * starts with a word character must not be preceded by one. `TenantMembership::query()`
+ * is still caught, `App\Models\TenantMembership::` is still caught (a
+ * backslash is not a word character), and `CheckTenantMembership::class` is
+ * correctly not. Patterns that start with `-`, `>` or `:` are unaffected.
+ */
+function tenancyPatternMatches(string $line, string $pattern): bool
+{
+    if (preg_match('/^\w/', $pattern) !== 1) {
+        return str_contains($line, $pattern);
+    }
+
+    return preg_match('/(?<![A-Za-z0-9_])'.preg_quote($pattern, '/').'/', $line) === 1;
+}
+
 function tenancyDisciplineViolations(): array
 {
     $root = dirname(__DIR__, 2);
@@ -89,7 +113,7 @@ function tenancyDisciplineViolations(): array
                 }
 
                 foreach (TENANCY_DISCIPLINE_RULES as $pattern => $allowedPaths) {
-                    if (! str_contains($line, $pattern)) {
+                    if (! tenancyPatternMatches($line, $pattern)) {
                         continue;
                     }
 
@@ -110,6 +134,19 @@ function tenancyDisciplineViolations(): array
 
 it('confines dangerous tenancy operations to their sanctioned locations', function () {
     expect(tenancyDisciplineViolations())->toBeEmpty();
+});
+
+it('matches the guarded class itself and not a different class that ends with its name', function () {
+    // The sweep is only as good as its matcher, so the matcher has its own
+    // test: loosening it later to silence a false positive would have to
+    // break this first.
+    expect(tenancyPatternMatches('TenantMembership::query()->get();', 'TenantMembership::'))->toBeTrue()
+        ->and(tenancyPatternMatches('return \App\Models\TenantMembership::query();', 'TenantMembership::'))->toBeTrue()
+        ->and(tenancyPatternMatches('app(CheckTenantMembership::class)($user);', 'TenantMembership::'))->toBeFalse()
+        // Patterns that begin with punctuation are untouched by the boundary.
+        ->and(tenancyPatternMatches('$m->fresh();', '->fresh('))->toBeTrue()
+        ->and(tenancyPatternMatches('$q->withoutTenancy();', 'withoutTenancy('))->toBeTrue()
+        ->and(tenancyPatternMatches("\$q->where('tenant_id', 1);", "where('tenant_id'"))->toBeTrue();
 });
 
 /*
@@ -261,6 +298,29 @@ it('finds the three tenant-owned tables of the reporting slice, all of them scop
     }
 });
 
+it('finds the tenant-owned tables of the Phase 2 modules, all of them scoped', function () {
+    $models = modelsByTable();
+
+    // Every record an MDA creates about its own delivery: the results
+    // framework it reports against, the inspections it conducts, the issues it
+    // raises, the notices and certificates it issues, the evaluations
+    // commissioned over it, and its annual work plan. A missing entry here is
+    // not a style problem — it is an unscoped table holding one MDA's field
+    // evidence where another MDA can read it.
+    foreach ([
+        'result_frameworks', 'indicator_reading_events',
+        'site_inspections', 'site_inspection_responses', 'site_inspection_events',
+        'issues', 'issue_events', 'exception_reports',
+        'commencement_notices', 'certificates',
+        'evaluations', 'evaluation_team_members', 'evaluation_report_sections',
+        'evaluation_criterion_scores', 'evaluation_events', 'recommendations',
+        'workplans', 'workplan_activities', 'workplan_events',
+    ] as $table) {
+        expect(tablesWithTenantColumn())->toContain($table)
+            ->and($models[$table]['scoped'] ?? false)->toBeTrue();
+    }
+});
+
 it('leaves global reference tables unscoped, as cross-MDA aggregation requires', function () {
     $tables = tablesWithTenantColumn();
     $models = modelsByTable();
@@ -270,7 +330,27 @@ it('leaves global reference tables unscoped, as cross-MDA aggregation requires',
     // the compliance league table is only meaningful if every MDA is measured
     // against an identical denominator. A per-tenant calendar would make
     // "which MDA was late" unanswerable.
-    foreach (['sectors', 'funding_sources', 'lgas', 'wards', 'contractors', 'reporting_periods'] as $table) {
+    // Each of these is global BY DECISION, and each decision is different:
+    //  - sectors/funding_sources/lgas/wards/contractors: state-wide reference
+    //    data every MDA draws from.
+    //  - reporting_periods: the compliance league table is only meaningful if
+    //    every MDA is measured against an identical denominator.
+    //  - indicator_definitions / inspection_checklist_templates(+_items): the
+    //    reusable library and the state's checklists — an MDA INSTANTIATES
+    //    these into its own tenant-owned records rather than owning them.
+    //  - consolidated_reports(+ sections/entries/events): a state roll-up
+    //    SPANS every MDA. A tenant_id here would be wrong twice over.
+    //  - report_exports: the artifact register records oversight and tenant
+    //    exports alike; provenance lives in generated_for_tenant_id, which is
+    //    deliberately not named tenant_id because it is not a scope key.
+    //  - feedback(+_responses): a citizen does not know which MDA owns a
+    //    project; the record hangs off the project, which carries the tenancy.
+    foreach ([
+        'sectors', 'funding_sources', 'lgas', 'wards', 'contractors', 'reporting_periods',
+        'indicator_definitions', 'inspection_checklist_templates', 'inspection_checklist_template_items',
+        'consolidated_reports', 'consolidated_report_sections', 'consolidated_report_entries',
+        'consolidation_events', 'report_exports', 'feedback', 'feedback_responses',
+    ] as $table) {
         expect($tables)->not->toContain($table)
             ->and($models[$table]['scoped'] ?? false)->toBeFalse();
     }

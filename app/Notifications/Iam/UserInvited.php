@@ -3,6 +3,8 @@
 namespace App\Notifications\Iam;
 
 use App\Models\Invitation;
+use App\Notifications\Concerns\NotificationCategories;
+use App\Notifications\Concerns\RespectsPreferences;
 use App\Support\SurfaceUrl;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -16,7 +18,7 @@ use Illuminate\Notifications\Notification;
  */
 class UserInvited extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, RespectsPreferences;
 
     public function __construct(
         private readonly Invitation $invitation,
@@ -26,7 +28,12 @@ class UserInvited extends Notification implements ShouldQueue
     /** @return list<string> */
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return $this->preferredChannels($notifiable, ['mail']);
+    }
+
+    public function notificationCategory(): string
+    {
+        return NotificationCategories::IAM;
     }
 
     public function toMail(object $notifiable): MailMessage

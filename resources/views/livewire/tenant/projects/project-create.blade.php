@@ -11,7 +11,7 @@
     <x-ui.page-header
         :title="__('Register a project')"
         :description="__('Three short steps. Everything except the title, reference and sector can be completed later — the project is created as a draft.')"
-        :back="url('/projects')"
+        :back="route('tenant.projects.index')"
         :back-label="__('Back to projects')"
     />
 

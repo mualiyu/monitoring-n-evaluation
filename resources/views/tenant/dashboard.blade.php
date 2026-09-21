@@ -1,9 +1,10 @@
 {{--
     MDA workspace dashboard.
 
-    Deliberately thin: every panel below becomes a lazy Livewire component in Phase 1
-    (@@lazy + computed properties with eager loading). The KPI figures are placeholder
-    literals, marked as such, so nobody mistakes them for live data.
+    Thin by construction: every panel is a lazy Livewire component with its own
+    skeleton, so the shell paints immediately and no single aggregate can hold
+    the page. Every figure on it is read from this workspace — there are no
+    placeholder numbers left here.
 
     $tenant is shared by the ResolveTenant middleware; still read null-safely so the
     view renders in previews and tests.
@@ -36,7 +37,7 @@
                 it is not duplicated here.
             --}}
             @can('create', \App\Models\Project::class)
-                <x-ui.button size="sm" icon="plus" :href="url('/projects/create')">
+                <x-ui.button size="sm" icon="plus" :href="route('tenant.projects.create')">
                     {{ __('Register project') }}
                 </x-ui.button>
             @endcan
@@ -51,52 +52,13 @@
     @endif
 
     {{--
-        KPI row. The FIGURES are still placeholder literals — they are not read
-        from this workspace and must not be shown to a client as live data; the
-        real aggregates arrive with the summary-table widgets on the roadmap.
-        The LINKS are now real: every tile reaches the list that would explain
-        it (design system: "every metric card links to the drill-down"), where
-        they previously all pointed at href="#".
+        KPI row — live, read from this workspace. It replaced four hard-coded
+        literals that shipped labelled "sample figure"; a number on a
+        government dashboard is either true or it is a liability. Lazy, so the
+        page header paints before the aggregate returns, and scoped by
+        visibleTo() inside the Action so a consultant lands on their own work.
     --}}
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <x-ui.stat
-            :label="__('Active projects')"
-            value="24"
-            icon="folder"
-            delta="+3"
-            trend="up"
-            intent="positive"
-            :hint="__('sample figure')"
-            :href="url('/projects')"
-        />
-        <x-ui.stat
-            :label="__('Contract value monitored')"
-            value="₦8.6bn"
-            icon="banknotes"
-            :hint="__('sample figure')"
-            :href="url('/projects')"
-        />
-        <x-ui.stat
-            :label="__('Reports awaiting review')"
-            value="6"
-            icon="document-text"
-            delta="+2"
-            trend="up"
-            intent="warning"
-            :hint="__('sample figure')"
-            :href="url('/reports')"
-        />
-        <x-ui.stat
-            :label="__('Overdue submissions')"
-            value="1"
-            icon="exclamation-triangle"
-            delta="−2"
-            trend="down"
-            intent="positive"
-            :hint="__('sample figure')"
-            :href="url('/reports')"
-        />
-    </div>
+    <livewire:tenant.dashboard.workspace-kpis lazy />
 
     {{--
         Live reporting widgets. Both are LAZY: the shell and the KPI row paint
@@ -106,7 +68,11 @@
         the workspace's.
     --}}
     <div class="mt-6 grid gap-4 lg:grid-cols-2">
-        <livewire:tenant.reporting.recent-reports-card lazy />
+        <livewire:tenant.dashboard.delivery-chart lazy />
         <livewire:tenant.reporting.upcoming-deadlines-card lazy />
+    </div>
+
+    <div class="mt-4">
+        <livewire:tenant.reporting.recent-reports-card lazy />
     </div>
 @endsection

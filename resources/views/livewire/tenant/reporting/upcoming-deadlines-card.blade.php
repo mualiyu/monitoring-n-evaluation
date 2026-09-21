@@ -1,11 +1,23 @@
 {{-- Dashboard widget — what is owed next (App\Livewire\Tenant\Reporting\UpcomingDeadlinesCard). --}}
+@php
+    // route(), not url(): the tenant surface lives on a {tenant} subdomain, so
+    // every link carries its workspace explicitly. route() fails loudly on a
+    // missing route or a wrong binding key; a hand-built string 404s silently.
+    $workspace = ['tenant' => app(\App\Tenancy\CurrentTenant::class)->getOrFail()->slug];
+    $fileUrl = fn ($obligation) => route('tenant.reports.create', [
+        ...$workspace,
+        'project' => $obligation->project->ulid,
+        'period' => $obligation->reporting_period_id,
+    ]);
+@endphp
+
 <div>
     <x-ui.card
         :title="__('Upcoming deadlines')"
         :subtitle="__('Reporting obligations due in the next 30 days — and anything already past its deadline')"
     >
         <x-slot:actions>
-            <x-ui.button variant="ghost" size="sm" trailing-icon="chevron-right" :href="url('/reports')">
+            <x-ui.button variant="ghost" size="sm" trailing-icon="chevron-right" :href="route('tenant.reports.calendar', $workspace)">
                 {{ __('Full list') }}
             </x-ui.button>
         </x-slot:actions>
@@ -29,7 +41,7 @@
                         <div class="min-w-0">
                             @if ($obligation->project)
                                 <a
-                                    href="{{ url('/reports/create?project='.$obligation->project->ulid.'&period='.$obligation->reporting_period_id) }}"
+                                    href="{{ $fileUrl($obligation) }}"
                                     class="rounded text-sm font-medium text-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                                 >{{ $obligation->project->title }}</a>
                             @else

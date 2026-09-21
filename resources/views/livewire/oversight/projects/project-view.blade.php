@@ -8,16 +8,24 @@
     $isLate = $deliveryDate && $deliveryDate->isPast()
         && ! in_array($project->status->value, ['completed', 'certified', 'closed', 'cancelled'], true);
     $pending = $pendingStatus ? \App\Enums\ProjectStatus::tryFrom($pendingStatus) : null;
+
+    // Named routes, not hand-built paths: route() fails loudly on a missing
+    // route or the wrong binding key, where a string 404s silently. The
+    // oversight surface carries no domain parameter, so no extra arguments.
+    $portfolioUrl = route('oversight.portfolio.index');
+    $entityUrl = $project->tenant
+        ? route('oversight.portfolio.tenant', ['tenant' => $project->tenant->slug])
+        : $portfolioUrl;
 @endphp
 
 <div>
     <x-ui.page-header
         :title="$project->title"
-        :back="url('/portfolio')"
+        :back="$portfolioUrl"
         :back-label="__('State portfolio')"
         :breadcrumbs="[
-            ['label' => __('State portfolio'), 'href' => url('/portfolio')],
-            ['label' => $project->tenant?->name ?? __('Entity'), 'href' => url('/portfolio/'.$project->tenant?->slug)],
+            ['label' => __('State portfolio'), 'href' => $portfolioUrl],
+            ['label' => $project->tenant?->name ?? __('Entity'), 'href' => $entityUrl],
             ['label' => $project->reference],
         ]"
     >
@@ -62,7 +70,7 @@
         <span class="text-sm text-ink-muted">·</span>
         <span class="text-sm text-ink-muted">{{ $project->sector?->name }}</span>
         <span class="text-sm text-ink-muted">·</span>
-        <a href="{{ url('/portfolio/'.$project->tenant?->slug) }}" class="rounded text-sm font-medium text-brand-ink hover:underline">
+        <a href="{{ $entityUrl }}" class="rounded text-sm font-medium text-brand-ink hover:underline">
             {{ $project->tenant?->name }}
         </a>
         @if ($isLate)
@@ -130,6 +138,27 @@
                     </x-ui.table>
                 @endif
             </x-ui.card>
+
+            {{-- The entity's own files, read-only. Oversight reads the record;
+                 it does not add to or remove from another entity's evidence,
+                 so both panels are mounted with :readonly. The download links
+                 are still signed and still permission-checked — the surface a
+                 file is read on never changes who may read it. --}}
+            <div class="grid gap-4 sm:grid-cols-2">
+                <livewire:shared.document-panel
+                    :key="'oversight-project-documents-'.$project->ulid"
+                    :model="$project"
+                    collection="project_documents"
+                    :readonly="true"
+                />
+
+                <livewire:shared.document-panel
+                    :key="'oversight-project-photos-'.$project->ulid"
+                    :model="$project"
+                    collection="project_photos"
+                    :readonly="true"
+                />
+            </div>
         </div>
 
         <div class="space-y-4">

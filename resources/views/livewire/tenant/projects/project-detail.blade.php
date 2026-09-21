@@ -7,28 +7,36 @@
     $deliveryDate = $project->revised_end_date ?? $project->expected_end_date;
     $isLate = $deliveryDate && $deliveryDate->isPast() && ! in_array($project->status->value, ['completed', 'certified', 'closed', 'cancelled'], true);
 
-    $tabs = [
-        'overview' => ['label' => __('Overview'), 'icon' => 'squares'],
-        'contracts' => ['label' => __('Contracts'), 'icon' => 'banknotes', 'count' => $this->contracts->count()],
-        'team' => ['label' => __('Team'), 'icon' => 'users', 'count' => $this->assignments->count()],
-        'indicators' => ['label' => __('Indicators'), 'icon' => 'chart-bar', 'count' => $this->indicators->count()],
-        'documents' => ['label' => __('Documents'), 'icon' => 'document-text'],
-    ];
+    // Only the tabs this user may open — the contracts tab is gated on
+    // `contracts.view`, which the field roles do not hold. Built by walking
+    // the allowed list rather than filtering a full one, so the contracts
+    // query never runs for someone who may not read it.
+    $tabs = [];
+
+    foreach ($this->visibleTabs as $key) {
+        $tabs[$key] = match ($key) {
+            'contracts' => ['label' => __('Contracts'), 'icon' => 'banknotes', 'count' => $this->contracts->count()],
+            'team' => ['label' => __('Team'), 'icon' => 'users', 'count' => $this->assignments->count()],
+            'indicators' => ['label' => __('Indicators'), 'icon' => 'chart-bar', 'count' => $this->indicators->count()],
+            'documents' => ['label' => __('Documents'), 'icon' => 'document-text'],
+            default => ['label' => __('Overview'), 'icon' => 'squares'],
+        };
+    }
 @endphp
 
 <div>
     <x-ui.page-header
         :title="$project->title"
-        :back="url('/projects')"
+        :back="$this->projectsUrl"
         :back-label="__('All projects')"
         :breadcrumbs="[
-            ['label' => __('Projects'), 'href' => url('/projects')],
+            ['label' => __('Projects'), 'href' => $this->projectsUrl],
             ['label' => $project->reference],
         ]"
     >
         <x-slot:actions>
             @can('update', $project)
-                <x-ui.button variant="secondary" size="sm" icon="pencil-square" :href="url('/projects/'.$project->ulid.'/edit')">
+                <x-ui.button variant="secondary" size="sm" icon="pencil-square" :href="$this->editUrl">
                     {{ __('Edit details') }}
                 </x-ui.button>
             @endcan
@@ -278,8 +286,8 @@
         <x-ui.card flush :title="__('Contracts')" :subtitle="__('Award sums are immutable — corrections are recorded as variations.')">
             <x-slot:actions>
                 @can('award', $project)
-                    <x-ui.button size="sm" icon="plus" x-on:click="$dispatch('open-modal', 'award-contract')">
-                        {{ __('Record an award') }}
+                    <x-ui.button size="sm" icon="plus" :href="$this->contractCreateUrl">
+                        {{ __('Record a contract') }}
                     </x-ui.button>
                 @endcan
             </x-slot:actions>
@@ -292,7 +300,7 @@
                 >
                     <x-slot:actions>
                         @can('award', $project)
-                            <x-ui.button icon="plus" x-on:click="$dispatch('open-modal', 'award-contract')">
+                            <x-ui.button icon="plus" :href="$this->contractCreateUrl">
                                 {{ __('Record an award') }}
                             </x-ui.button>
                         @endcan
@@ -305,9 +313,11 @@
                     :headings="[__('Contract'), __('Contractor'), ['label' => __('Award sum'), 'align' => 'right'], ['label' => __('Revised value'), 'align' => 'right'], __('Status')]"
                 >
                     @foreach ($this->contracts as $contract)
-                        <x-ui.table.row wire:key="contract-{{ $contract->id }}">
+                        <x-ui.table.row wire:key="contract-{{ $contract->ulid }}">
                             <x-ui.table.cell :label="__('Contract')" primary>
-                                {{ $contract->contract_number }}
+                                <a href="{{ $this->contractUrl($contract) }}" class="rounded font-medium text-brand-ink hover:underline">
+                                    {{ $contract->contract_number }}
+                                </a>
                                 <span class="block text-xs font-normal text-ink-muted">
                                     {{ $contract->type->label() }} · {{ $contract->award_date?->translatedFormat('j M Y') }}
                                 </span>
@@ -332,7 +342,17 @@
                             </x-ui.table.cell>
 
                             <x-ui.table.cell :label="__('Status')">
-                                <x-ui.badge :status="$contract->status->value" :label="$contract->status->label()" />
+                                <div class="flex items-center justify-end gap-2 sm:justify-start">
+                                    <x-ui.badge :status="$contract->status->value" :label="$contract->status->label()" />
+                                    <x-ui.button
+                                        variant="ghost"
+                                        size="sm"
+                                        icon="chevron-right"
+                                        icon-only
+                                        :href="$this->contractUrl($contract)"
+                                        :aria-label="__('Open contract :number', ['number' => $contract->contract_number])"
+                                    />
+                                </div>
                             </x-ui.table.cell>
                         </x-ui.table.row>
                     @endforeach
@@ -452,22 +472,31 @@
     @endif
 
     {{-- ================================================================ --}}
-    {{-- Documents (placeholder — medialibrary wiring is a follow-up)       --}}
+    {{-- Documents                                                         --}}
     {{-- ================================================================ --}}
     @if ($tab === 'documents')
-        <x-ui.card flush :title="__('Documents')" :subtitle="__('Award letters, drawings, certificates and site photographs')">
-            <x-ui.empty-state
-                icon="document-text"
-                :title="__('Document upload is not available yet')"
-                :description="__('Evidence uploads arrive with the progress reporting module — photographs keep their GPS and timestamp data, and documents are served through permission-checked links, never public URLs.')"
-            >
-                <x-slot:actions>
-                    <x-ui.button variant="secondary" icon="arrow-left" wire:click="selectTab('overview')">
-                        {{ __('Back to overview') }}
-                    </x-ui.button>
-                </x-slot:actions>
-            </x-ui.empty-state>
-        </x-ui.card>
+        <div class="space-y-4">
+            <x-ui.alert variant="neutral" icon="shield-check">
+                {{ __('Files are stored on a private disk and served only through short-lived, permission-checked links — never a public URL. Photographs keep the GPS and capture time their camera recorded.') }}
+            </x-ui.alert>
+
+            <div class="grid gap-4 lg:grid-cols-2">
+                {{-- Two collections, two panels: approvals and drawings are
+                     paperwork, site photography is evidence, and the upload
+                     rules for each live in config/documents.php. --}}
+                <livewire:shared.document-panel
+                    :key="'project-documents-'.$project->ulid"
+                    :model="$project"
+                    collection="project_documents"
+                />
+
+                <livewire:shared.document-panel
+                    :key="'project-photos-'.$project->ulid"
+                    :model="$project"
+                    collection="project_photos"
+                />
+            </div>
+        </div>
     @endif
 
     {{-- ================================================================ --}}
@@ -522,68 +551,4 @@
         </x-slot:footer>
     </x-ui.modal>
 
-    @can('award', $project)
-        <x-ui.modal
-            name="award-contract"
-            :title="__('Record a contract award')"
-            :description="__('The award sum cannot be edited afterwards — later changes are recorded as variations.')"
-            max-width="lg"
-        >
-            <div class="space-y-4">
-                <x-ui.form.group name="contractorId" :label="__('Contractor')" :hint="__('Blacklisted firms are not listed.')" required>
-                    <x-ui.form.select
-                        name="contractorId"
-                        :placeholder="__('Choose a contractor')"
-                        :options="$this->contractors->mapWithKeys(fn ($c) => [$c->id => $c->name.($c->rc_number ? ' — '.$c->rc_number : '')])->all()"
-                        has-hint
-                        wire:model="contractorId"
-                    />
-                </x-ui.form.group>
-
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <x-ui.form.group name="contractNumber" :label="__('Contract number')" required>
-                        <x-ui.form.input name="contractNumber" wire:model="contractNumber" />
-                    </x-ui.form.group>
-
-                    <x-ui.form.group name="contractType" :label="__('Contract type')" required>
-                        <x-ui.form.select
-                            name="contractType"
-                            :options="collect(\App\Enums\ContractType::cases())->mapWithKeys(fn ($case) => [$case->value => $case->label()])->all()"
-                            wire:model="contractType"
-                        />
-                    </x-ui.form.group>
-                </div>
-
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <x-ui.form.group name="contractSum" :label="__('Award sum')" required>
-                        <x-ui.form.input name="contractSum" type="number" step="0.01" min="0" prefix="₦" wire:model="contractSum" />
-                    </x-ui.form.group>
-
-                    <x-ui.form.group name="awardDate" :label="__('Award date')" required>
-                        <x-ui.form.input name="awardDate" type="date" wire:model="awardDate" />
-                    </x-ui.form.group>
-                </div>
-
-                <x-ui.form.group name="expectedCompletionDate" :label="__('Expected completion date')" optional>
-                    <x-ui.form.input name="expectedCompletionDate" type="date" wire:model="expectedCompletionDate" />
-                </x-ui.form.group>
-
-                <x-ui.form.group
-                    name="scopeOfWorks"
-                    :label="__('Scope of works')"
-                    :hint="__('Quoted verbatim in the commencement notice, so write it as it appears in the contract.')"
-                    required
-                >
-                    <x-ui.form.textarea name="scopeOfWorks" rows="4" maxlength="10000" has-hint wire:model="scopeOfWorks" />
-                </x-ui.form.group>
-            </div>
-
-            <x-slot:footer>
-                <x-ui.button variant="secondary" x-on:click="$dispatch('close-modal', 'award-contract')">{{ __('Cancel') }}</x-ui.button>
-                <x-ui.button wire:click="awardContract" loading="awardContract" icon="check-circle">
-                    {{ __('Record award') }}
-                </x-ui.button>
-            </x-slot:footer>
-        </x-ui.modal>
-    @endcan
 </div>

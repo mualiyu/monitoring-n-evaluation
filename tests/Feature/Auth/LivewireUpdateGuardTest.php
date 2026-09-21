@@ -68,13 +68,27 @@ afterEach(function () {
  * underneath it". Re-rendering at POST time would just get the redirect and
  * prove nothing.
  */
-function componentSnapshot(Tenant $tenant, string $path): string
+function componentSnapshot(Tenant $tenant, string $path, string $component = 'tenant.projects.project-edit'): string
 {
     $page = test()->get(tenantUrl($tenant, $path))->assertOk();
 
-    preg_match('/wire:snapshot="([^"]+)"/', (string) $page->getContent(), $m);
+    // Match the snapshot of the NAMED component, not merely the first one on
+    // the page. The shell carries its own components (the notification bell
+    // lives in the topbar), so "the first wire:snapshot" silently became the
+    // chrome rather than the screen — and the POST below then called save()
+    // on a component that has no save(), failing for a reason that had
+    // nothing to do with the gate under test.
+    preg_match_all('/wire:snapshot="([^"]+)"/', (string) $page->getContent(), $matches);
 
-    return html_entity_decode($m[1] ?? '', ENT_QUOTES);
+    foreach ($matches[1] ?? [] as $snapshot) {
+        $decoded = html_entity_decode($snapshot, ENT_QUOTES);
+
+        if (str_contains($decoded, '"name":"'.$component.'"')) {
+            return $decoded;
+        }
+    }
+
+    test()->fail("No wire:snapshot for component [{$component}] on {$path}.");
 }
 
 /** POST a component update to the real endpoint, exactly as the browser does. */

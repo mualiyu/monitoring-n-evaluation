@@ -17,7 +17,16 @@
     <x-ui.page-header
         :title="__('Reporting compliance')"
         :description="__('Which entities filed their statutory returns, and which filed them on time. Measured at submission — approval quality is a separate question.')"
-    />
+    >
+        <x-slot:actions>
+            <x-ui.button
+                variant="secondary"
+                size="sm"
+                icon="document-text"
+                :href="route('oversight.reports.index')"
+            >{{ __('All filed returns') }}</x-ui.button>
+        </x-slot:actions>
+    </x-ui.page-header>
 
     @if ($board === null || $period === null)
         <x-ui.card>
@@ -119,9 +128,10 @@
                             <x-ui.table.cell :label="__('Entity')" primary>
                                 @if ($row['slug'])
                                     <a
-                                        href="{{ url('/portfolio/'.$row['slug']) }}"
+                                        href="{{ route('oversight.compliance.tenant', ['tenant' => $row['slug']]) }}"
                                         class="rounded hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                                     >{{ $row['name'] }}</a>
+                                    <span class="sr-only">{{ __('— open this entity’s compliance record') }}</span>
                                 @else
                                     {{ $row['name'] ?? __('Unknown entity') }}
                                 @endif

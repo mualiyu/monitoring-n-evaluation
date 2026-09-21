@@ -1,9 +1,9 @@
 {{--
     State-level oversight dashboard (cross-entity).
 
-    Thin by design: the league table and KPI tiles become lazy Livewire components
-    reading through explicit Model::withoutTenancy() calls in oversight Actions.
-    Figures below are placeholder literals, not live data.
+    The KPI row is a lazy Livewire component reading through the oversight
+    Actions, which own the sanctioned cross-tenant reads. The panels below it
+    link into the boards that hold the detail.
 --}}
 @php
     $title = __('State dashboard');
@@ -24,42 +24,17 @@
     </x-ui.page-header>
 
     {{--
-        Figures here are honest zeros rather than invented ones. The links are
-        now real: each tile reaches the screen that explains it, where they all
-        previously pointed at href="#".
+        KPI row — live, read across every MDA through the oversight Actions,
+        which re-check their own permission in the GLOBAL team before any
+        tenancy bypass. Lazy: a cross-MDA aggregate must never hold the page.
     --}}
-    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <x-ui.stat
-            :label="__('Entities reporting')"
-            value="0 / 0"
-            icon="building-office"
-            :hint="__('workspaces provisioned')"
-            :href="url('/portfolio')"
-        />
-        <x-ui.stat
-            :label="__('Projects under monitoring')"
-            value="0"
-            icon="folder"
-            :hint="__('across all sectors')"
-            :href="url('/portfolio')"
-        />
-        <x-ui.stat
-            :label="__('Portfolio value')"
-            value="₦0.00"
-            icon="banknotes"
-            :hint="__('of appropriated capital budget')"
-            :href="url('/portfolio')"
-        />
-        <x-ui.stat
-            :label="__('Reporting compliance')"
-            value="—"
-            icon="clipboard-check"
-            :hint="__('on-time submissions this quarter')"
-            :href="url('/compliance')"
-        />
+    <livewire:oversight.dashboard.state-kpis lazy />
+
+    <div class="mt-5">
+        <livewire:oversight.dashboard.portfolio-chart lazy />
     </div>
 
-    <div class="mt-5 grid gap-4 xl:grid-cols-3">
+    <div class="mt-4 grid gap-4 xl:grid-cols-3">
         <x-ui.card
             class="xl:col-span-2"
             :title="__('Entity league table')"
@@ -67,7 +42,7 @@
         >
             <x-slot:actions>
                 {{-- The real ranking, with its own filters, is the compliance board. --}}
-                <x-ui.button variant="ghost" size="sm" trailing-icon="arrow-right" :href="url('/compliance')">
+                <x-ui.button variant="ghost" size="sm" trailing-icon="arrow-right" :href="route('oversight.compliance.index')">
                     {{ __('Open compliance board') }}
                 </x-ui.button>
             </x-slot:actions>
@@ -85,7 +60,7 @@
                         exist is worse than no button. Inviting administrators
                         does have one, so that action now reaches it.
                     --}}
-                    <x-ui.button size="sm" variant="secondary" icon="users" :href="url('/users')">
+                    <x-ui.button size="sm" variant="secondary" icon="users" :href="route('oversight.users.index')">
                         {{ __('Invite entity administrators') }}
                     </x-ui.button>
                 </x-slot:actions>
@@ -106,7 +81,7 @@
                         secretariat can actually act on are on the compliance
                         board today.
                     --}}
-                    <x-ui.button size="sm" variant="secondary" trailing-icon="arrow-right" :href="url('/compliance')">
+                    <x-ui.button size="sm" variant="secondary" trailing-icon="arrow-right" :href="route('oversight.compliance.index')">
                         {{ __('Review reporting compliance') }}
                     </x-ui.button>
                 </x-slot:actions>

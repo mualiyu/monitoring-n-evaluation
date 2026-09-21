@@ -16,6 +16,7 @@ use App\Models\ReportObligation;
 use App\Models\User;
 use App\Support\Money;
 use App\Support\SettingsRepository;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
@@ -362,7 +363,25 @@ class ReportForm extends Component
             'window' => $report->reportingPeriod->label,
         ]));
 
-        return $this->redirect(url('/reports/'.$report->ulid), navigate: true);
+        // route(), not a hand-built string: a named route fails loudly if the
+        // path or the binding key ever changes, where a string would silently
+        // land the author on a 404 immediately after filing.
+        return $this->redirect($this->reportUrl($report), navigate: true);
+    }
+
+    /**
+     * The workspace-qualified link to a filed return. The tenant surface lives
+     * on a {tenant} subdomain, so the slug is passed explicitly rather than
+     * relying on a URL default set by request middleware — this method is also
+     * reached from a Livewire update, and a link is not worth a dependency on
+     * which middleware stack happened to run.
+     */
+    private function reportUrl(ProgressReport $report): string
+    {
+        return route('tenant.reports.show', [
+            'tenant' => app(CurrentTenant::class)->getOrFail()->slug,
+            'report' => $report->ulid,
+        ]);
     }
 
     private function nullIfBlank(string $value): ?string

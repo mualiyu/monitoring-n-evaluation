@@ -31,7 +31,8 @@
     <span class="min-w-0 flex-1 truncate">{{ $slot }}</span>
 
     @if (filled($badge))
-        <span class="shrink-0 rounded-full bg-critical-soft px-2 py-0.5 text-xs font-semibold text-critical-ink tabular-nums">
+        {{-- data-badge so a test can assert the COUNT, not just the label. --}}
+        <span data-badge class="shrink-0 rounded-full bg-critical-soft px-2 py-0.5 text-xs font-semibold text-critical-ink tabular-nums">
             {{ $badge }}
         </span>
     @endif

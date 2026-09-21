@@ -10,6 +10,7 @@ use App\Enums\Surface;
 use App\Models\User;
 use App\Support\DocumentCollections;
 use App\Tenancy\CurrentSurface;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
@@ -112,12 +113,29 @@ class DocumentPanel extends Component
     public function downloadUrl(Media $media): string
     {
         $surface = app(CurrentSurface::class)->get();
-        $prefix = $surface === Surface::Oversight ? Surface::Oversight->value : Surface::Tenant->value;
+        $oversight = $surface === Surface::Oversight;
+        $prefix = $oversight ? Surface::Oversight->value : Surface::Tenant->value;
+
+        // The tenant route carries a {tenant} DOMAIN parameter. ResolveTenant
+        // fills it via URL::defaults() on a real request, but a Livewire
+        // component test renders without ever crossing HTTP — and the missing
+        // default is then a UrlGenerationException, not a wrong link. Passing
+        // the bound tenant explicitly makes the panel render the same way in
+        // both worlds.
+        $parameters = ['media' => $media->uuid];
+
+        if (! $oversight) {
+            $tenant = app(CurrentTenant::class)->get();
+
+            if ($tenant !== null) {
+                $parameters['tenant'] = $tenant->slug;
+            }
+        }
 
         return url()->temporarySignedRoute(
             $prefix.'.documents.download',
             now()->addMinutes((int) config('documents.signed_url_minutes', 15)),
-            ['media' => $media->uuid],
+            $parameters,
         );
     }
 

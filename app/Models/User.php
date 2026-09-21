@@ -21,6 +21,8 @@ use Spatie\Permission\Traits\HasRoles;
  * Global identity. Tenant membership/authority comes exclusively from
  * team-scoped roles (spatie/laravel-permission, team = tenant_id) — a role
  * in MDA A grants nothing in MDA B. Oversight roles carry a null tenant_id.
+ *
+ * @property array<string, array<string, bool>>|null $notification_preferences
  */
 #[Fillable(['name', 'email', 'phone', 'password'])]
 #[Hidden(['password', 'remember_token', 'two_factor_recovery_codes', 'two_factor_secret'])]
@@ -46,7 +48,29 @@ class User extends Authenticatable implements MustVerifyEmail
             'two_factor_required_at' => 'datetime',
             'two_factor_exempted_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
+            // Notification mutes, { category: { channel: false } }. ABSENT
+            // MEANS ON, so a category added later is delivered by default.
+            // Deliberately not fillable: written only by
+            // App\Actions\Settings\SaveNotificationPreferences.
+            'notification_preferences' => 'array',
         ];
+    }
+
+    /**
+     * Whether this user has muted a notification category on a channel.
+     * Read by App\Notifications\Concerns\RespectsPreferences inside via().
+     */
+    public function hasMutedNotifications(string $category, string $channel): bool
+    {
+        $preferences = $this->notification_preferences;
+
+        if (! is_array($preferences)) {
+            return false;
+        }
+
+        $forCategory = $preferences[$category] ?? null;
+
+        return is_array($forCategory) && ($forCategory[$channel] ?? true) === false;
     }
 
     public function getRouteKeyName(): string

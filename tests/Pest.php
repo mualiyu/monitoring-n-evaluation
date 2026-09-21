@@ -17,6 +17,21 @@ pest()->extend(TestCase::class)
     ->in('Feature');
 
 /*
+| Unit tests get the application but NOT a migrated database.
+|
+| They were previously plain PHPUnit, which worked only for as long as no unit
+| test touched the framework. That stopped being true the moment enums grew
+| label() and badge() — `__()` needs the translator — and the moment a
+| derivation like App\Support\WorkplanProgress took unsaved Eloquent models,
+| which need a connection resolver to build their casts.
+|
+| RefreshDatabase is deliberately NOT applied here: a unit test that needs
+| tables is a feature test wearing the wrong hat, and it can opt in per file
+| with `uses(RefreshDatabase::class);`.
+*/
+pest()->extend(TestCase::class)->in('Unit');
+
+/*
 |--------------------------------------------------------------------------
 | Tenancy helpers
 |--------------------------------------------------------------------------

@@ -6,6 +6,7 @@ use App\Casts\MoneyCast;
 use App\Enums\ProgressReportStatus;
 use App\Enums\ReportEntryMode;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasDocuments;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Database\Factories\ProgressReportFactory;
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
+use Spatie\MediaLibrary\HasMedia;
 
 /**
  * A project's return for one reporting window — tenant-owned.
@@ -71,12 +73,31 @@ use Spatie\Activitylog\Support\LogOptions;
     'progress_decrease_reason', 'period_expenditure', 'entry_mode',
     'contractor_id', 'created_by_id',
 ])]
-class ProgressReport extends Model
+class ProgressReport extends Model implements HasMedia
 {
     use BelongsToTenant;
+    use HasDocuments;
 
     /** @use HasFactory<ProgressReportFactory> */
     use HasFactory, LogsActivity, SoftDeletes;
+
+    /**
+     * Evidence for the return: site photographs, valuations, measurement
+     * sheets (progress-reporting.md §5). ONE collection, because the rules
+     * that matter — private disk, mime allow-list, size ceiling, who may
+     * upload — are the same for both and live in config/documents.php.
+     *
+     * The freeze is not expressed here: it is a STATE rule (the vault is
+     * read-only once the return leaves draft), enforced by the screens that
+     * embed the panel and by ProgressReportPolicy::update(). Evidence that can
+     * change after review is not evidence.
+     *
+     * @return list<string>
+     */
+    public function documentCollections(): array
+    {
+        return ['report_evidence'];
+    }
 
     protected static function booted(): void
     {

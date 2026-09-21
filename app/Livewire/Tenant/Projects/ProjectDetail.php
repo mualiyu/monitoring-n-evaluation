@@ -6,16 +6,13 @@ namespace App\Livewire\Tenant\Projects;
 
 use App\Actions\Iam\ListTenantMembers;
 use App\Actions\Projects\AssignProjectMember;
-use App\Actions\Projects\AwardContract;
 use App\Actions\Projects\TransitionProjectStatus;
 use App\Actions\Projects\UnassignProjectMember;
-use App\Enums\ContractType;
 use App\Enums\ProjectRole;
 use App\Enums\ProjectStatus;
 use App\Exceptions\Projects\InvalidStatusTransition;
 use App\Exceptions\Projects\ProjectRuleViolation;
 use App\Models\Contract;
-use App\Models\Contractor;
 use App\Models\Indicator;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
@@ -24,8 +21,7 @@ use App\Models\ProjectLocation;
 use App\Models\ProjectStatusEvent;
 use App\Models\TenantMembership;
 use App\Models\User;
-use App\Support\Money;
-use Illuminate\Auth\Access\AuthorizationException;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -41,6 +37,12 @@ use Livewire\Component;
  * Every mutation delegates to an Action, which re-authorizes and enforces the
  * domain rule independently — the checks here decide what to *render*, never
  * what is *allowed*. Both halves are tested.
+ *
+ * Contracts are READ here and written on their own screens
+ * (`/projects/{project}/contracts/create`, `…/contracts/{contract}`): an award
+ * and a variation each need more of the record than a modal can ask for
+ * without lying about what is optional, and the variation path needs the
+ * contract it amends in front of the officer while they fill it in.
  */
 #[Layout('layouts::tenant')]
 class ProjectDetail extends Component
@@ -62,21 +64,6 @@ class ProjectDetail extends Component
 
     public string $assigneeRole = 'field_monitor';
 
-    // Contract award
-    public string $contractorId = '';
-
-    public string $contractNumber = '';
-
-    public string $contractType = 'works';
-
-    public string $contractSum = '';
-
-    public string $scopeOfWorks = '';
-
-    public string $awardDate = '';
-
-    public string $expectedCompletionDate = '';
-
     public ?string $failure = null;
 
     /**
@@ -89,16 +76,40 @@ class ProjectDetail extends Component
         $this->authorize('view', $project);
 
         $this->project = $project;
-        $this->awardDate = now()->toDateString();
 
-        if (! in_array($this->tab, self::TABS, true)) {
+        if (! in_array($this->tab, $this->visibleTabs, true)) {
             $this->tab = 'overview';
         }
     }
 
+    /**
+     * The tabs THIS user may open.
+     *
+     * Contract sums are not open to the field roles: `contracts.view` is an
+     * MDA-staff and oversight permission, so a consultant who delivers a
+     * project still does not get to read what the state is paying for it.
+     * Hiding the tab is only half of it — ContractPolicy refuses the contract
+     * screens to the same people, and the `contracts` computed below is the
+     * only other way this data reaches a page.
+     *
+     * @return list<string>
+     */
+    #[Computed]
+    public function visibleTabs(): array
+    {
+        /** @var User $user */
+        $user = auth()->user();
+
+        return array_values(array_filter(self::TABS, fn (string $tab): bool => match ($tab) {
+            'contracts' => $user->can('viewAny', Contract::class),
+            'documents' => $user->can('documents.view') || $user->holdsGlobalPermission('documents.view'),
+            default => true,
+        }));
+    }
+
     public function selectTab(string $tab): void
     {
-        if (in_array($tab, self::TABS, true)) {
+        if (in_array($tab, $this->visibleTabs, true)) {
             $this->tab = $tab;
         }
     }
@@ -259,61 +270,6 @@ class ProjectDetail extends Component
     }
 
     /* ------------------------------------------------------------------ */
-    /* Contracts */
-    /* ------------------------------------------------------------------ */
-
-    public function awardContract(AwardContract $award): void
-    {
-        $this->authorize('award', $this->project);
-
-        $this->validate([
-            'contractorId' => ['required', Rule::exists('contractors', 'id')],
-            'contractNumber' => ['required', 'string', 'max:60'],
-            'contractType' => ['required', Rule::enum(ContractType::class)],
-            'contractSum' => ['required', 'numeric', Money::FORM_RULE, 'min:0.01', 'max:9999999999999.99'],
-            'scopeOfWorks' => ['required', 'string', 'min:20', 'max:10000'],
-            'awardDate' => ['required', 'date'],
-            'expectedCompletionDate' => ['nullable', 'date', 'after_or_equal:awardDate'],
-        ], [], [
-            'contractorId' => __('contractor'),
-            'contractNumber' => __('contract number'),
-            'contractSum' => __('contract sum'),
-            'scopeOfWorks' => __('scope of works'),
-            'awardDate' => __('award date'),
-            'expectedCompletionDate' => __('expected completion date'),
-        ]);
-
-        $this->failure = null;
-
-        /** @var User $actor */
-        $actor = auth()->user();
-        $contractor = Contractor::query()->findOrFail($this->contractorId);
-
-        try {
-            $award($this->project, $contractor, $actor, [
-                'contract_number' => trim($this->contractNumber),
-                'type' => $this->contractType,
-                'sum' => $this->contractSum,
-                'scope_of_works' => trim($this->scopeOfWorks),
-                'award_date' => $this->awardDate,
-                'expected_completion_date' => $this->expectedCompletionDate === '' ? null : $this->expectedCompletionDate,
-            ]);
-        } catch (ProjectRuleViolation|AuthorizationException $exception) {
-            $this->failure = $exception->getMessage();
-
-            return;
-        }
-
-        $this->reset(['contractorId', 'contractNumber', 'contractSum', 'scopeOfWorks', 'expectedCompletionDate']);
-        $this->project->refresh();
-
-        unset($this->contracts, $this->availableTransitions, $this->statusEvents);
-
-        $this->dispatch('close-modal', 'award-contract');
-        session()->flash('status', __('Contract recorded and the project moved to Awarded.'));
-    }
-
-    /* ------------------------------------------------------------------ */
     /* Computed reads — every one eager-loaded */
     /* ------------------------------------------------------------------ */
 
@@ -393,14 +349,55 @@ class ProjectDetail extends Component
             ->values();
     }
 
-    /** @return Collection<int, Contractor> */
+    /* ------------------------------------------------------------------ */
+    /* Links */
+    /* ------------------------------------------------------------------ */
+
     #[Computed]
-    public function contractors(): Collection
+    public function projectsUrl(): string
     {
-        return Contractor::query()
-            ->where('is_blacklisted', false)
-            ->orderBy('name')
-            ->get(['id', 'name', 'rc_number']);
+        return $this->tenantRoute('tenant.projects.index');
+    }
+
+    #[Computed]
+    public function editUrl(): string
+    {
+        return $this->tenantRoute('tenant.projects.edit', ['project' => $this->project]);
+    }
+
+    #[Computed]
+    public function contractCreateUrl(): string
+    {
+        return $this->tenantRoute('tenant.projects.contracts.create', ['project' => $this->project]);
+    }
+
+    public function contractUrl(Contract $contract): string
+    {
+        return $this->tenantRoute('tenant.projects.contracts.show', [
+            'project' => $this->project,
+            'contract' => $contract,
+        ]);
+    }
+
+    /**
+     * A named-route URL on THIS workspace's subdomain.
+     *
+     * route() is the rule — it fails loudly on a missing route or the wrong
+     * binding key, where a hand-built string 404s silently in front of a user
+     * (this project shipped exactly that twice). The tenant routes carry a
+     * `{tenant}` domain parameter that ResolveTenant fills through
+     * URL::defaults on a real request and that nothing fills inside
+     * Livewire::test(), which never crosses HTTP; passing the bound tenant
+     * explicitly makes both paths generate the same URL.
+     *
+     * @param  array<string, mixed>  $parameters
+     */
+    private function tenantRoute(string $name, array $parameters = []): string
+    {
+        return route($name, [
+            'tenant' => app(CurrentTenant::class)->getOrFail()->slug,
+            ...$parameters,
+        ]);
     }
 
     public function render(): View

@@ -74,7 +74,7 @@
                                  BuildPortfolioSummary leaves slug null when the tenant row
                                  has gone (same guard as the compliance board). --}}
                             @if ($row['slug'])
-                                <a href="{{ url('/portfolio/'.$row['slug']) }}" class="rounded hover:underline">
+                                <a href="{{ route('oversight.portfolio.tenant', $row['slug']) }}" class="rounded hover:underline">
                                     {{ $row['name'] ?? __('Unnamed entity') }}
                                 </a>
                             @else
@@ -98,7 +98,7 @@
 
                         <x-ui.table.cell align="right">
                             @if ($row['slug'])
-                                <x-ui.button variant="ghost" size="sm" trailing-icon="chevron-right" :href="url('/portfolio/'.$row['slug'])">
+                                <x-ui.button variant="ghost" size="sm" trailing-icon="chevron-right" :href="route('oversight.portfolio.tenant', $row['slug'])">
                                     {{ __('Drill down') }}
                                 </x-ui.button>
                             @endif
@@ -216,7 +216,7 @@
 
                         <x-ui.table.row wire:key="portfolio-project-{{ $project->ulid }}">
                             <x-ui.table.cell :label="__('Project')" primary>
-                                <a href="{{ url('/projects/'.$project->ulid) }}" class="rounded hover:underline">{{ $project->title }}</a>
+                                <a href="{{ route('oversight.projects.show', $project->ulid) }}" class="rounded hover:underline">{{ $project->title }}</a>
                                 <span class="mt-0.5 block font-mono text-xs font-normal text-ink-muted">
                                     {{ $project->reference }}
                                     @if ($project->primaryLocation?->lga)

@@ -8,6 +8,7 @@ use App\Actions\Oversight\BuildPortfolioSummary;
 use App\Actions\Oversight\ListProjectsAcrossTenants;
 use App\Enums\ProjectStatus;
 use App\Models\FundingSource;
+use App\Models\Lga;
 use App\Models\Project;
 use App\Models\Sector;
 use App\Models\Tenant;
@@ -49,6 +50,18 @@ class Portfolio extends Component
     #[Url(as: 'funding', except: '')]
     public string $fundingSource = '';
 
+    /** An LGA id; a multi-site project is listed under every LGA it touches. */
+    #[Url(except: '')]
+    public string $lga = '';
+
+    /**
+     * `yes` = at least one site with BOTH coordinates, `no` = no such site;
+     * anything else constrains nothing. With an LGA set, only that LGA's sites
+     * are tested — the state GIS dashboard's rule, so its tiles drill in here.
+     */
+    #[Url(except: '')]
+    public string $geotagged = '';
+
     #[Url(except: false)]
     public bool $overdue = false;
 
@@ -85,6 +98,16 @@ class Portfolio extends Component
         $this->resetPage();
     }
 
+    public function updatedLga(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedGeotagged(): void
+    {
+        $this->resetPage();
+    }
+
     public function updatedOverdue(): void
     {
         $this->resetPage();
@@ -92,21 +115,35 @@ class Portfolio extends Component
 
     public function clearFilters(): void
     {
-        $this->reset(['search', 'tenantId', 'status', 'sector', 'fundingSource', 'overdue']);
+        $this->reset(['search', 'tenantId', 'status', 'sector', 'fundingSource', 'lga', 'geotagged', 'overdue']);
         $this->resetPage();
     }
 
     public function hasFilters(): bool
     {
         return $this->search !== '' || $this->tenantId !== '' || $this->status !== ''
-            || $this->sector !== '' || $this->fundingSource !== '' || $this->overdue;
+            || $this->sector !== '' || $this->fundingSource !== '' || $this->lga !== ''
+            || $this->geotaggedFilter() !== null || $this->overdue;
+    }
+
+    /**
+     * The geotag filter as the Action reads it: true, false, or no constraint.
+     * URL state is user input, so an unrecognised value is ignored, not guessed.
+     */
+    private function geotaggedFilter(): ?bool
+    {
+        return match ($this->geotagged) {
+            'yes' => true,
+            'no' => false,
+            default => null,
+        };
     }
 
     /**
      * The Action takes models, not ids — it filters with whereBelongsTo() so
      * that no hand-written tenant clause exists anywhere, including here.
      *
-     * @return array<string, mixed>
+     * @return array{tenant: Tenant|null, status: ProjectStatus|null, sector: Sector|null, funding_source: FundingSource|null, lga: Lga|null, geotagged: bool|null, search: string|null, overdue: bool}
      */
     private function filters(): array
     {
@@ -117,6 +154,10 @@ class Portfolio extends Component
             'funding_source' => $this->fundingSource !== ''
                 ? $this->fundingSources()->firstWhere('id', (int) $this->fundingSource)
                 : null,
+            // Resolved against the active LGAs on offer: an id matching no row
+            // is dropped, never passed to SQL raw.
+            'lga' => $this->lga !== '' ? $this->lgas()->firstWhere('id', (int) $this->lga) : null,
+            'geotagged' => $this->geotaggedFilter(),
             'search' => $this->search === '' ? null : $this->search,
             'overdue' => $this->overdue,
         ];
@@ -167,6 +208,18 @@ class Portfolio extends Component
     public function fundingSources(): Collection
     {
         return FundingSource::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']);
+    }
+
+    /**
+     * Global reference data, so no tenancy question arises — and every active
+     * LGA is offered, since a state-wide list spans the whole state roll.
+     *
+     * @return Collection<int, Lga>
+     */
+    #[Computed]
+    public function lgas(): Collection
+    {
+        return Lga::query()->active()->orderBy('name')->get(['id', 'name']);
     }
 
     /** @return array<string, string> */

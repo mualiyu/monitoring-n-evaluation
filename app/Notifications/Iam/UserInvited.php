@@ -7,6 +7,7 @@ use App\Notifications\Concerns\NotificationCategories;
 use App\Notifications\Concerns\RespectsPreferences;
 use App\Support\SurfaceUrl;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -14,9 +15,14 @@ use Illuminate\Notifications\Notification;
 /**
  * Invitation mail. The acceptance URL is built from config (SurfaceUrl), not
  * the request — this runs in a queue worker where no request host exists.
- * The plaintext token lives only inside this notification instance.
+ *
+ * The plaintext token lives only inside this notification instance — and
+ * because the instance is QUEUED, inside its serialized payload too: the
+ * `jobs` table locally, Redis in production, `failed_jobs` if delivery fails.
+ * ShouldBeEncrypted seals that payload with the app key, so a backed-up queue
+ * or a database dump is not a list of live, single-use sign-up credentials.
  */
-class UserInvited extends Notification implements ShouldQueue
+class UserInvited extends Notification implements ShouldBeEncrypted, ShouldQueue
 {
     use Queueable, RespectsPreferences;
 

@@ -3,6 +3,8 @@
 namespace App\Notifications\Lifecycle;
 
 use App\Models\CommencementNotice;
+use App\Notifications\Concerns\NotificationCategories;
+use App\Notifications\Concerns\RespectsPreferences;
 use App\Support\InstanceTime;
 use App\Support\SurfaceUrl;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -21,12 +23,19 @@ use Illuminate\Notifications\Notification;
  */
 class CommencementNoticeIssued extends Notification
 {
+    use RespectsPreferences;
+
     public function __construct(private readonly CommencementNotice $notice) {}
 
     /** @return list<string> */
     public function via(object $notifiable): array
     {
-        return ['database', 'mail'];
+        return $this->preferredChannels($notifiable, ['database', 'mail']);
+    }
+
+    public function notificationCategory(): string
+    {
+        return NotificationCategories::PROJECTS;
     }
 
     public function toMail(object $notifiable): MailMessage

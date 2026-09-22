@@ -58,6 +58,13 @@
                 'can' => 'oversight.portfolio.view',
             ],
             [
+                'label' => __('GIS dashboard'),
+                'icon' => 'globe',
+                'href' => route('oversight.gis'),
+                'active' => request()->routeIs('oversight.gis'),
+                'can' => 'oversight.portfolio.view',
+            ],
+            [
                 'label' => __('Work plans'),
                 'icon' => 'clipboard-check',
                 'href' => route('oversight.workplans.index'),

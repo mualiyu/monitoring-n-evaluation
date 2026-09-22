@@ -230,7 +230,7 @@ Leaflet via Vite. No Filament — custom UI per the design system.
 - [ ] Offline PWA for inspections/progress capture (service worker, background sync,
       versioned JSON API `routes/api.php`, conflict policy: server-wins + draft rescue)
 - [ ] SMS channel (Termii or similar), stakeholder register + dissemination lists
-- [ ] GIS dashboard (project map by status/sector/LGA)
+- [x] GIS dashboard (project map by status/sector/LGA) — oversight `/gis` + workspace `/gis`, delivered early
 
 ### Phase 4 — Productization
 - [ ] Client onboarding playbook (new-state deployment in < 1 day)

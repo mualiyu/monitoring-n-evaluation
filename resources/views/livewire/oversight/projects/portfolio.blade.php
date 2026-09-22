@@ -161,6 +161,26 @@
                     />
                 </x-ui.form.group>
 
+                <x-ui.form.group name="lga" :label="__('Location (LGA)')" class="w-full sm:w-56">
+                    <x-ui.form.select
+                        name="lga"
+                        :placeholder="__('Anywhere')"
+                        :options="$this->lgas->pluck('name', 'id')->all()"
+                        wire:model.live="lga"
+                    />
+                </x-ui.form.group>
+
+                {{-- Whether a site carries a GPS fix — the state GIS dashboard's
+                     "on the map" / "not geotagged" tiles drill in through this. --}}
+                <x-ui.form.group name="geotagged" :label="__('Location (GPS)')" class="w-full sm:w-56">
+                    <x-ui.form.select
+                        name="geotagged"
+                        :placeholder="__('Any location')"
+                        :options="['yes' => __('Geotagged'), 'no' => __('Not geotagged')]"
+                        wire:model.live="geotagged"
+                    />
+                </x-ui.form.group>
+
                 <div class="pt-1 sm:pt-6">
                     <x-ui.form.checkbox
                         name="overdue"
@@ -186,7 +206,7 @@
             <x-ui.skeleton variant="table" :rows="6" />
         </div>
 
-        <div wire:loading.delay.long.remove wire:target="search,tenantId,status,sector,fundingSource,overdue,gotoPage,previousPage,nextPage">
+        <div wire:loading.delay.long.remove wire:target="search,tenantId,status,sector,fundingSource,lga,geotagged,overdue,gotoPage,previousPage,nextPage">
             @if ($this->projects->isEmpty())
                 <x-ui.empty-state
                     :variant="$this->hasFilters() ? 'filtered' : 'empty'"

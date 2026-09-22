@@ -55,6 +55,15 @@ class ProjectIndex extends Component
     #[Url(except: '')]
     public string $lga = '';
 
+    /**
+     * `yes` = at least one site with BOTH coordinates, `no` = no such site;
+     * anything else constrains nothing. With an LGA set, only that LGA's sites
+     * are tested — the GIS dashboard's rule, so its tiles drill in here and
+     * land on the same number.
+     */
+    #[Url(except: '')]
+    public string $geotagged = '';
+
     #[Url(except: false)]
     public bool $overdue = false;
 
@@ -100,6 +109,11 @@ class ProjectIndex extends Component
         $this->resetPage();
     }
 
+    public function updatedGeotagged(): void
+    {
+        $this->resetPage();
+    }
+
     public function updatedOverdue(): void
     {
         $this->resetPage();
@@ -123,7 +137,7 @@ class ProjectIndex extends Component
 
     public function clearFilters(): void
     {
-        $this->reset(['search', 'status', 'sector', 'fundingSource', 'lga', 'overdue']);
+        $this->reset(['search', 'status', 'sector', 'fundingSource', 'lga', 'geotagged', 'overdue']);
         $this->resetPage();
     }
 
@@ -134,7 +148,21 @@ class ProjectIndex extends Component
             || $this->sector !== ''
             || $this->fundingSource !== ''
             || $this->lga !== ''
+            || $this->geotaggedFilter() !== null
             || $this->overdue;
+    }
+
+    /**
+     * The geotag filter as the query reads it: true, false, or no constraint.
+     * URL state is user input, so an unrecognised value is ignored, not guessed.
+     */
+    private function geotaggedFilter(): ?bool
+    {
+        return match ($this->geotagged) {
+            'yes' => true,
+            'no' => false,
+            default => null,
+        };
     }
 
     /**
@@ -170,7 +198,32 @@ class ProjectIndex extends Component
                 'locations',
                 fn (Builder $location) => $location->where('lga_id', $this->lga),
             ))
+            ->when($this->geotaggedFilter() === true, fn (Builder $q) => $q->whereHas(
+                'locations',
+                $this->constrainToMappableSites(...),
+            ))
+            ->when($this->geotaggedFilter() === false, fn (Builder $q) => $q->whereDoesntHave(
+                'locations',
+                $this->constrainToMappableSites(...),
+            ))
             ->when($this->overdue, fn (Builder $q) => $this->constrainToOverdue($q));
+    }
+
+    /**
+     * A site the map can draw: BOTH coordinates present — one without the
+     * other is not a fix. With an LGA filter, only that LGA's sites count, so
+     * `lga=X&geotagged=no` means "has a site in X, none of them fixed" even if
+     * the project is fixed elsewhere. Same rule as the GIS dashboard.
+     *
+     * @param  Builder<ProjectLocation>  $location
+     * @return Builder<ProjectLocation>
+     */
+    private function constrainToMappableSites(Builder $location): Builder
+    {
+        return $location
+            ->whereNotNull('project_locations.latitude')
+            ->whereNotNull('project_locations.longitude')
+            ->when($this->lga !== '', fn (Builder $site) => $site->where('project_locations.lga_id', $this->lga));
     }
 
     /**
@@ -184,7 +237,12 @@ class ProjectIndex extends Component
      */
     private function constrainToOverdue(Builder $query): Builder
     {
+        // actual_end_date IS NULL too — the rule Project::isOverdue(), the
+        // state portfolio and the GIS map all apply. Without it the register
+        // alone counted a project with a recorded finish date as late, and the
+        // map's "Overdue" tile drilled into a list with a different number.
         return $query
+            ->whereNull('actual_end_date')
             ->whereNotIn('status', [
                 ProjectStatus::Completed->value,
                 ProjectStatus::Certified->value,
@@ -241,6 +299,7 @@ class ProjectIndex extends Component
             ->selectRaw('SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as aggregate_in_progress', [ProjectStatus::InProgress->value])
             ->selectRaw(
                 'SUM(CASE WHEN status NOT IN (?, ?, ?, ?)
+                      AND actual_end_date IS NULL
                       AND COALESCE(revised_end_date, expected_end_date) IS NOT NULL
                       AND COALESCE(revised_end_date, expected_end_date) < ?
                      THEN 1 ELSE 0 END) as aggregate_overdue',

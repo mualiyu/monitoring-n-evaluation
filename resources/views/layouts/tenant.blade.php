@@ -66,6 +66,13 @@
                 'can' => 'projects.view',
             ],
             [
+                'label' => __('Project map'),
+                'icon' => 'map-pin',
+                'href' => route('tenant.gis'),
+                'active' => request()->routeIs('tenant.gis'),
+                'can' => 'projects.view',
+            ],
+            [
                 'label' => __('Contractors'),
                 'icon' => 'building-office',
                 'href' => route('tenant.contractors.index'),

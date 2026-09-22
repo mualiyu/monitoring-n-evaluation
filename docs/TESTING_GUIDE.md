@@ -75,14 +75,16 @@ Same pattern: `mda-admin@health.mne.test`, `me-officer@health.mne.test`,
    are issued in code for now (UI comes with the module screens):
    `php artisan tinker` →
    `(new App\Actions\Iam\InviteUser)(App\Models\User::where('email','mda-admin@works.mne.test')->first(), 'newperson@example.com', App\Enums\Role::Consultant, App\Models\Tenant::where('slug','works')->first());`
-   The invite email lands in `storage/logs/laravel.log` (default `MAIL_MAILER=log`) —
-   or point Herd's Mailpit at it with `MAIL_MAILER=smtp`, `MAIL_HOST=127.0.0.1`,
-   `MAIL_PORT=2525` in `.env` to view it at http://localhost:8025. Open the acceptance
-   URL from the mail: name + password form, then straight into the works workspace.
+   The invitation is a **queued** mail: it is only sent once a queue worker picks it up
+   (see [Mail, queue & notifications](#mail-queue--notifications-local) — without a
+   worker it waits in the `jobs` table and never arrives). With the worker running it
+   lands in `storage/logs/laravel.log` (local `MAIL_MAILER=log`) or in Herd's mail
+   catcher. Open the acceptance URL from the mail: name + password form, then straight
+   into the works workspace.
 10. **Password reset lives on the apex** — http://works.mne.test/forgot-password
-    redirects to http://mne.test/forgot-password (deliberate: reset links are built in
-    queue workers and must have one deterministic host). Reset mail also lands in the
-    log/Mailpit.
+    redirects to http://mne.test/forgot-password (deliberate: reset links get one
+    deterministic host). Reset mail is sent immediately — no worker needed — and lands
+    in the log or Herd's mail catcher with a link on http://mne.test.
 11. **Register a project** — http://works.mne.test/projects/create as
     `mda-admin@works.mne.test` or `me-officer@works.mne.test`. Three steps;
     every dropdown (sector, funding source, LGA, ward, manager) submits the
@@ -151,12 +153,64 @@ Same pattern: `mda-admin@health.mne.test`, `me-officer@health.mne.test`,
     subdomains and duplicate slugs are refused, and the first admin is invited through
     the normal invitation flow), `/settings` tunes the instance policy numbers,
     `/audit` is the append-only activity trail — with no way to edit or delete a line.
-    `/notifications` and the topbar bell are live on both surfaces; mute a category in
-    `/settings/notifications` and watch that channel go quiet.
+    `/notifications` and the topbar bell are live on both surfaces (they fill only while
+    a queue worker runs — see below); mute a category in `/settings/notifications` and
+    watch that channel go quiet.
 25. **Stakeholder feedback moderation** — submit feedback on the public portal, then
     moderate it at `/feedback` in the owning workspace (or oversight `/feedback` for
     everything). Pending feedback is never publicly visible; a published response
     appears under it on the portal.
+26. **GIS dashboard** — oversight `/gis` (sidebar: Portfolio → GIS dashboard) maps every
+    entity's project sites; each workspace has its own at `/gis` (Delivery → Project
+    map), role-narrowed like the register — sign in as `consultant@works.mne.test` and
+    only assigned projects appear. Filter by entity (oversight), status, sector, LGA or
+    "past delivery date"; the map redraws in place. Markers carry an icon as well as a
+    colour (overdue outranks status), popups link to the project, and "Show on map" in
+    the LGA table focuses one area. Every tile drills into the project list with the
+    same filters. The basemap is OpenStreetMap by default — production deployments set
+    `PLATFORM_MAP_TILE_URL` / `PLATFORM_MAP_TILE_ATTRIBUTION` (see `config/platform.php`).
+
+## Mail, queue & notifications (local)
+
+**Every notification — the bell *and* its email — is delivered by a queued job**, and so
+is the invitation mail. Herd serves the sites but runs no queue worker, so with nothing
+consuming the queue the jobs sit in the `jobs` table: the bell stays empty and no mail
+is written. Keep a worker running in a terminal while you test:
+
+```bash
+composer dev:herd                    # queue worker + scheduler + Vite, together
+```
+
+or, separately:
+
+```bash
+php artisan queue:listen --tries=1   # reloads your code on every job; use queue:work for speed
+php artisan schedule:work            # optional: the daily reminder / overdue sweeps
+```
+
+(`composer dev` also starts a worker, but it starts `php artisan serve` on :8000 as well —
+under Herd use `composer dev:herd` instead.)
+
+- **Preferences:** everyone can mute categories from the account menu → *Notification
+  preferences* (or *Preferences* on the notification centre) — at `/settings/notifications`
+  on both a workspace and the oversight host.
+
+- **Backlog / failures:** `php artisan queue:monitor database:default` shows what is
+  waiting; `php artisan queue:failed` and `php artisan queue:retry all` handle failures.
+  A job that was queued while no worker ran is delivered as soon as one starts.
+- **Where mail goes:** local `MAIL_MAILER=log` writes each message to
+  `storage/logs/laravel.log` (`php artisan pail` to watch it). To see rendered mail,
+  switch on Herd Pro's mail catcher (SMTP on `127.0.0.1:2525`; it is off on this
+  machine) and set `MAIL_MAILER=smtp`, `MAIL_HOST=127.0.0.1`, `MAIL_PORT=2525`. Messages
+  appear in Herd's own Mail window, not on `localhost:8025` (that is standalone
+  Mailpit, whose SMTP port is 1025).
+- **Sender:** set `MAIL_FROM_NAME` and `MAIL_FROM_ADDRESS` in `.env`. Left unset they
+  default to `PLATFORM_INSTANCE_NAME` and `no-reply@<PLATFORM_DOMAIN>`; the stock
+  `MAIL_FROM_NAME="${APP_NAME}"` sends as "Laravel". Message bodies are already branded
+  with the instance name whatever `APP_NAME` says.
+- **Production** runs the queue on Redis under Horizon (`config/horizon.php`), which
+  needs `QUEUE_CONNECTION=redis`. Locally there is no Redis, so the worker above drains
+  the `database` connection.
 
 ## Developer checks
 
@@ -164,4 +218,4 @@ Same pattern: `mda-admin@health.mne.test`, `me-officer@health.mne.test`,
   money, rendered-form option values)
 - `vendor/bin/pint --test` + `php -d memory_limit=1G vendor/bin/phpstan analyse`
 - `php artisan migrate:fresh --seed` — rebuild the demo state
-- Emails: `storage/logs/laravel.log` (or Mailpit as in item 9)
+- Emails: `storage/logs/laravel.log` or Herd's mail catcher, **with a queue worker running** (see above)

@@ -75,6 +75,17 @@
                     />
                 </x-ui.form.group>
 
+                {{-- Whether a site carries a GPS fix — the GIS dashboard's
+                     "on the map" / "not geotagged" tiles drill in through this. --}}
+                <x-ui.form.group name="geotagged" :label="__('Location (GPS)')" class="w-full sm:w-56">
+                    <x-ui.form.select
+                        name="geotagged"
+                        :placeholder="__('Any location')"
+                        :options="['yes' => __('Geotagged'), 'no' => __('Not geotagged')]"
+                        wire:model.live="geotagged"
+                    />
+                </x-ui.form.group>
+
                 <x-ui.form.group name="fundingSource" :label="__('Funding source')" class="w-full sm:w-56">
                     <x-ui.form.select
                         name="fundingSource"
@@ -107,7 +118,7 @@
     {{-- ---------------------------------------------------------------- --}}
     {{-- Summary row                                                       --}}
     {{-- ---------------------------------------------------------------- --}}
-    <div class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" wire:loading.class="opacity-60" wire:target="search,status,sector,fundingSource,lga,overdue">
+    <div class="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" wire:loading.class="opacity-60" wire:target="search,status,sector,fundingSource,lga,geotagged,overdue">
         <x-ui.stat
             :label="__('Projects matching')"
             :value="number_format($this->stats['count'])"
@@ -142,7 +153,7 @@
             <x-ui.skeleton variant="table" :rows="6" />
         </div>
 
-        <div wire:loading.delay.long.remove wire:target="search,status,sector,fundingSource,lga,overdue,sortBy,gotoPage,previousPage,nextPage">
+        <div wire:loading.delay.long.remove wire:target="search,status,sector,fundingSource,lga,geotagged,overdue,sortBy,gotoPage,previousPage,nextPage">
             @if ($this->projects->isEmpty())
                 @if ($this->hasFilters())
                     <x-ui.empty-state

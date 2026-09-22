@@ -14,7 +14,10 @@
                `current` stays the no-JS / first-paint fallback — keep them in sync.
 
         <x-ui.steps :steps="['Identity', 'Scope & budget', 'Location']" :current="2" />
-        <x-ui.steps :steps="$steps" :current="1" state="step" />   {{-- inside x-data --}}
+        <x-ui.steps :steps="$steps" :current="1" state="step" />   (inside x-data)
+
+    NB: no Blade comment markers inside this block — a nested closing marker
+    ends the whole comment early and prints the real one on every wizard.
 --}}
 @props([
     'steps' => [],

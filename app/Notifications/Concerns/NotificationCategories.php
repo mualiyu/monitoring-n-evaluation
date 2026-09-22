@@ -38,6 +38,8 @@ final class NotificationCategories
 
     public const EVALUATION = 'evaluation';
 
+    public const WORKPLANS = 'workplans';
+
     /** The channels a person may switch off independently. */
     public const CHANNELS = ['mail', 'database'];
 
@@ -77,6 +79,15 @@ final class NotificationCategories
             self::EVALUATION => [
                 'label' => __('Evaluation'),
                 'description' => __('Evaluations commissioned, scored or approved, and recommendations assigned to you.'),
+                'mutable' => true,
+            ],
+            // A genuinely separate kind of thing to be told about: the annual
+            // plan is the MDA's own commitment, not a project's lifecycle or a
+            // periodic return, and the people who approve it are not the
+            // people who file returns.
+            self::WORKPLANS => [
+                'label' => __('Work plans'),
+                'description' => __('Annual work plans waiting for your approval or sent back, and activities assigned to you or past their date.'),
                 'mutable' => true,
             ],
         ];

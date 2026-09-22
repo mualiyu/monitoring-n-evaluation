@@ -150,15 +150,56 @@ class DemoProjectSeeder extends Seeder
             $lga = $lgas[$index % $lgas->count()];
             $ward = $lga->wards->first();
 
+            [$latitude, $longitude] = $this->demoCoordinates($lga, $project->reference.'#'.$index);
+
             ProjectLocation::factory()->create([
                 'project_id' => $project->id,
                 'site_name' => $site,
                 'description' => $site.' — '.$lga->name.' LGA',
                 'lga_id' => $lga->id,
                 'ward_id' => $ward?->id,
+                'latitude' => $latitude,
+                'longitude' => $longitude,
                 'is_primary' => $index === 0,
             ]);
         }
+    }
+
+    /**
+     * Demo anchors for the FICTIONAL LGAs of LgaWardSeeder, clustered around
+     * the point DemoInspectionSeeder already geotags its visits at, so the GIS
+     * dashboard shows a believable state rather than the factory's random
+     * digits (which scattered sites across the Gulf of Guinea). A real
+     * deployment's sites carry their own surveyed fixes; this is demo only.
+     */
+    private const LGA_ANCHORS = [
+        'CEN' => [7.2570, 5.2050],
+        'RIV' => [7.0950, 5.0600],
+        'NGT' => [7.4600, 5.2300],
+        'HLT' => [7.3300, 5.4400],
+        'LKS' => [7.0700, 5.3900],
+    ];
+
+    /**
+     * A site within ~3 km of its LGA's anchor. Derived from a hash of the
+     * project reference, not from faker, so a reseed puts every pin back in
+     * the same place and screenshots stay comparable.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function demoCoordinates(Lga $lga, string $seed): array
+    {
+        [$latitude, $longitude] = self::LGA_ANCHORS[$lga->code] ?? self::LGA_ANCHORS['CEN'];
+
+        $hash = crc32($seed);
+        $latOffset = (($hash & 0xFFFF) / 0xFFFF - 0.5) * 0.06;
+        $lngOffset = ((($hash >> 16) & 0xFFFF) / 0xFFFF - 0.5) * 0.06;
+
+        // Decimal strings, never floats — see ProjectLocation.
+        return [
+            number_format($latitude + $latOffset, 7, '.', ''),
+            number_format($longitude + $lngOffset, 7, '.', ''),
+        ];
     }
 
     /**

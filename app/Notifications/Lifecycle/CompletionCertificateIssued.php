@@ -3,6 +3,8 @@
 namespace App\Notifications\Lifecycle;
 
 use App\Models\Certificate;
+use App\Notifications\Concerns\NotificationCategories;
+use App\Notifications\Concerns\RespectsPreferences;
 use App\Support\InstanceTime;
 use App\Support\SurfaceUrl;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -25,6 +27,8 @@ use Illuminate\Notifications\Notification;
  */
 class CompletionCertificateIssued extends Notification
 {
+    use RespectsPreferences;
+
     public function __construct(
         private readonly Certificate $certificate,
         private readonly bool $forOversight = false,
@@ -33,7 +37,12 @@ class CompletionCertificateIssued extends Notification
     /** @return list<string> */
     public function via(object $notifiable): array
     {
-        return ['database', 'mail'];
+        return $this->preferredChannels($notifiable, ['database', 'mail']);
+    }
+
+    public function notificationCategory(): string
+    {
+        return NotificationCategories::PROJECTS;
     }
 
     public function toMail(object $notifiable): MailMessage

@@ -4,14 +4,17 @@ namespace App\Notifications\Workplans;
 
 use App\Enums\WorkplanStatus;
 use App\Models\Workplan;
+use App\Notifications\Concerns\NotificationCategories;
+use App\Notifications\Concerns\RespectsPreferences;
 use App\Support\SurfaceUrl;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
  * "The 2026 work plan is waiting for your approval." / "Your work plan was
- * sent back." Database + mail, per the notification rules; SMS/WhatsApp
- * arrive behind the same abstraction when the preferences table lands.
+ * sent back." Database + mail, per the notification rules, each filtered by
+ * the recipient's own "Work plans" preference; SMS/WhatsApp arrive behind the
+ * same abstraction.
  *
  * ONE parameterized class for the whole chain rather than four near-identical
  * ones, as ProgressReportChainUpdated already does: *who* hears about a step
@@ -22,6 +25,8 @@ use Illuminate\Notifications\Notification;
  */
 class WorkplanChainUpdated extends Notification
 {
+    use RespectsPreferences;
+
     public function __construct(
         private readonly Workplan $workplan,
         private readonly WorkplanStatus $to,
@@ -31,7 +36,12 @@ class WorkplanChainUpdated extends Notification
     /** @return list<string> */
     public function via(object $notifiable): array
     {
-        return ['database', 'mail'];
+        return $this->preferredChannels($notifiable, ['database', 'mail']);
+    }
+
+    public function notificationCategory(): string
+    {
+        return NotificationCategories::WORKPLANS;
     }
 
     public function toMail(object $notifiable): MailMessage

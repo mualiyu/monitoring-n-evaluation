@@ -3,6 +3,8 @@
 namespace App\Notifications\Workplans;
 
 use App\Models\WorkplanActivity;
+use App\Notifications\Concerns\NotificationCategories;
+use App\Notifications\Concerns\RespectsPreferences;
 use App\Support\SurfaceUrl;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -19,6 +21,8 @@ use Illuminate\Notifications\Notification;
  */
 class WorkplanActivityOverdue extends Notification
 {
+    use RespectsPreferences;
+
     public function __construct(
         private readonly WorkplanActivity $activity,
         private readonly int $daysLate,
@@ -27,7 +31,12 @@ class WorkplanActivityOverdue extends Notification
     /** @return list<string> */
     public function via(object $notifiable): array
     {
-        return ['database', 'mail'];
+        return $this->preferredChannels($notifiable, ['database', 'mail']);
+    }
+
+    public function notificationCategory(): string
+    {
+        return NotificationCategories::WORKPLANS;
     }
 
     public function toMail(object $notifiable): MailMessage

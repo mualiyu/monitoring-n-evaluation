@@ -12,9 +12,8 @@ use Illuminate\Notifications\Notification;
 
 /**
  * "The bridge project you monitor has been suspended." Database + mail, per
- * the notification rules; SMS/WhatsApp arrive behind the same abstraction, and
- * per-user channel preferences replace the hard-coded `via()` when the
- * preferences table lands.
+ * the notification rules, each filtered by the recipient's own preferences
+ * (RespectsPreferences); SMS/WhatsApp arrive behind the same abstraction.
  *
  * NOT queued itself: it is already sent from inside a queued, tenant-aware job,
  * and queueing it again would hand the mailer a second, tenant-less hop.

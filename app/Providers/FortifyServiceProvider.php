@@ -8,12 +8,14 @@ use App\Actions\Fortify\UpdateUserPassword;
 use App\Actions\Fortify\UpdateUserProfileInformation;
 use App\Http\Responses\LoginResponse;
 use App\Http\Responses\LogoutResponse;
+use App\Http\Responses\VerificationLinkSentResponse;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
+use Laravel\Fortify\Contracts\EmailVerificationNotificationSentResponse;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Laravel\Fortify\Contracts\LogoutResponse as LogoutResponseContract;
 use Laravel\Fortify\Fortify;
@@ -24,6 +26,7 @@ class FortifyServiceProvider extends ServiceProvider
     {
         $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
         $this->app->singleton(LogoutResponseContract::class, LogoutResponse::class);
+        $this->app->singleton(EmailVerificationNotificationSentResponse::class, VerificationLinkSentResponse::class);
     }
 
     public function boot(): void
@@ -39,6 +42,9 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::requestPasswordResetLinkView(fn () => view('auth.forgot-password'));
         Fortify::resetPasswordView(fn (Request $request) => view('auth.reset-password', ['request' => $request]));
         Fortify::confirmPasswordView(fn () => view('auth.confirm-password'));
+        // emailVerification() is enabled in config/fortify.php, which registers
+        // GET /email/verify — without a view it resolved to a 500.
+        Fortify::verifyEmailView(fn () => view('auth.verify-email'));
 
         RateLimiter::for('login', function (Request $request) {
             $email = Str::transliterate(Str::lower((string) $request->input(Fortify::username())));

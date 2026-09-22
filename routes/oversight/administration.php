@@ -3,6 +3,7 @@
 use App\Livewire\Oversight\Audit\AuditLog;
 use App\Livewire\Oversight\Notifications\NotificationCentre;
 use App\Livewire\Oversight\Settings\InstanceSettings;
+use App\Livewire\Oversight\Settings\NotificationPreferences;
 use App\Livewire\Oversight\Tenancy\TenantDirectory;
 use App\Livewire\Oversight\Tenancy\TenantOnboarding;
 use App\Livewire\Oversight\Tenancy\TenantSettings;
@@ -34,3 +35,7 @@ Route::get('/settings', InstanceSettings::class)->name('settings.index');
 Route::get('/audit', AuditLog::class)->name('audit.index');
 
 Route::get('/notifications', NotificationCentre::class)->name('notifications.index');
+
+// Same path as the workspace copy, so a shared link (the account menu, the
+// notification centre) works on both app surfaces.
+Route::get('/settings/notifications', NotificationPreferences::class)->name('settings.notifications');

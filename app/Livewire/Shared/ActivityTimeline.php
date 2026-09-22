@@ -62,6 +62,19 @@ class ActivityTimeline extends Component
         $this->authorizeRead();
     }
 
+    /**
+     * Every request after the first. mount() never runs again on an update, so
+     * a check that lives only there authorizes the page and then nothing: a
+     * snapshot replayed later — by someone else, or on another host — re-renders
+     * entries() and answers changes() with no check at all. A `shared.*`
+     * component is reachable from both app surfaces, which makes this the only
+     * gate that follows the component wherever its snapshot goes.
+     */
+    public function hydrate(): void
+    {
+        $this->authorizeRead();
+    }
+
     public function expand(): void
     {
         $this->authorizeRead();

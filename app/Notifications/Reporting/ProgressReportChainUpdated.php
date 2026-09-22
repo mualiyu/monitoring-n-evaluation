@@ -12,9 +12,9 @@ use Illuminate\Notifications\Notification;
 
 /**
  * "A return is waiting for your review." / "Your March return was sent back."
- * Database + mail, per the notification rules; SMS/WhatsApp arrive behind the
- * same abstraction and per-user channel preferences replace the hard-coded
- * via() when the preferences table lands.
+ * Database + mail, per the notification rules, each filtered by the
+ * recipient's own preferences (RespectsPreferences); SMS/WhatsApp arrive
+ * behind the same abstraction.
  *
  * ONE parameterized class for the whole chain rather than three near-identical
  * ones (design §3 names ProgressReportSubmitted/Returned/Approved): the

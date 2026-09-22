@@ -108,11 +108,21 @@ return [
     | the same address. Here you may specify a name and address that is
     | used globally for all emails that are sent by your application.
     |
+    | White-label: when a deployment has not set a sender, fall back to the
+    | INSTANCE (the same PLATFORM_* variables config/platform.php reads), never
+    | to APP_NAME — which is the framework default on most machines and put
+    | "Laravel <hello@example.com>" in every recipient's inbox. config() is not
+    | usable here (platform.php loads after this file), hence env().
+    |
+    | An explicit MAIL_FROM_NAME / MAIL_FROM_ADDRESS in .env still wins. Note
+    | that the stock .env sets MAIL_FROM_NAME="${APP_NAME}", which re-imports
+    | the framework name: set it to the instance name, or remove it.
+    |
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-        'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
+        'address' => env('MAIL_FROM_ADDRESS', 'no-reply@'.env('PLATFORM_DOMAIN', 'mne.test')),
+        'name' => env('MAIL_FROM_NAME', env('PLATFORM_INSTANCE_NAME', 'M&E Platform')),
     ],
 
 ];

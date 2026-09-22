@@ -4,6 +4,7 @@ namespace App\Actions\Oversight;
 
 use App\Enums\ProjectStatus;
 use App\Models\FundingSource;
+use App\Models\Lga;
 use App\Models\Project;
 use App\Models\Sector;
 use App\Models\Tenant;
@@ -27,11 +28,16 @@ use Illuminate\Database\Eloquent\Builder;
  * `where('tenant_id', …)`. Manual tenant clauses are banned platform-wide, and
  * "except in oversight code" is exactly the exception that stops being read as
  * an exception.
+ *
+ * Location filters follow the GIS dashboard's rules exactly, because its tiles
+ * drill into this list: a multi-site project is listed under every LGA it
+ * touches, and `geotagged` (true = a site with BOTH coordinates, false = none,
+ * null = either) tests only the filtered LGA's sites when an LGA is set.
  */
 class ListProjectsAcrossTenants
 {
     /**
-     * @param  array{tenant?: Tenant|null, status?: ProjectStatus|null, sector?: Sector|null, funding_source?: FundingSource|null, search?: string|null, overdue?: bool}  $filters
+     * @param  array{tenant?: Tenant|null, status?: ProjectStatus|null, sector?: Sector|null, funding_source?: FundingSource|null, lga?: Lga|null, geotagged?: bool|null, search?: string|null, overdue?: bool}  $filters
      * @return LengthAwarePaginator<int, Project>
      */
     public function __invoke(User $actor, array $filters = [], int $perPage = 25): LengthAwarePaginator
@@ -51,11 +57,21 @@ class ListProjectsAcrossTenants
     }
 
     /**
-     * @param  array{tenant?: Tenant|null, status?: ProjectStatus|null, sector?: Sector|null, funding_source?: FundingSource|null, search?: string|null, overdue?: bool}  $filters
+     * @param  array{tenant?: Tenant|null, status?: ProjectStatus|null, sector?: Sector|null, funding_source?: FundingSource|null, lga?: Lga|null, geotagged?: bool|null, search?: string|null, overdue?: bool}  $filters
      * @return LengthAwarePaginator<int, Project>
      */
     private function query(array $filters, int $perPage): LengthAwarePaginator
     {
+        $lga = ($filters['lga'] ?? null) instanceof Lga ? $filters['lga'] : null;
+        $geotagged = $filters['geotagged'] ?? null;
+
+        // A site the map can draw — one coordinate without the other is not a
+        // fix — scoped to the filtered LGA when there is one.
+        $mappable = fn (Builder $location): Builder => $location
+            ->whereNotNull('project_locations.latitude')
+            ->whereNotNull('project_locations.longitude')
+            ->when($lga instanceof Lga, fn (Builder $site) => $site->whereBelongsTo($lga));
+
         return Project::query()
             ->with([
                 'tenant:id,name,slug',
@@ -82,6 +98,15 @@ class ListProjectsAcrossTenants
                     fn (Builder $allocation) => $allocation->whereBelongsTo($filters['funding_source']),
                 ),
             )
+            ->when(
+                $lga instanceof Lga,
+                fn (Builder $query) => $query->whereHas(
+                    'locations',
+                    fn (Builder $location) => $location->whereBelongsTo($lga),
+                ),
+            )
+            ->when($geotagged === true, fn (Builder $query) => $query->whereHas('locations', $mappable))
+            ->when($geotagged === false, fn (Builder $query) => $query->whereDoesntHave('locations', $mappable))
             ->when(
                 ($filters['search'] ?? null) !== null && $filters['search'] !== '',
                 fn (Builder $query) => $query->where(

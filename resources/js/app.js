@@ -11,8 +11,10 @@
  * import, so the library is fetched by the handful of screens that plot
  * something and by nobody else.
  *
- * Leaflet is not here either: it loads from a pinned, integrity-checked CDN on
- * the one public map screen that needs it.
+ * Leaflet follows the same rule on the app surfaces: the GIS dashboards import
+ * it (and its stylesheet) on demand inside the projectMap factory below. The
+ * public portal's map is separate and loads a pinned, integrity-checked copy
+ * from the CDN its CSP allow-lists.
  */
 
 /*
@@ -168,6 +170,143 @@ document.addEventListener('alpine:init', () => {
 
         destroy() {
             this.teardown()
+        },
+    }))
+
+    /*
+     * The GIS dashboards' map (livewire/shared/partials/project-map).
+     *
+     * Leaflet owns the canvas, so the element is wire:ignore'd and Livewire
+     * never morphs it. First paint reads the pins embedded in the page; every
+     * filter change after that arrives as a `project-map-updated` event carrying
+     * the new pins, and the marker layer is redrawn in place — the basemap, zoom
+     * and tile cache survive.
+     *
+     * Popups and markers are built from DOM nodes and textContent, never from
+     * HTML strings: titles and site names are staff-entered, and staff-entered
+     * is not trusted. Marker glyphs are cloned from server-rendered <template>s
+     * of our own icon set.
+     */
+    window.Alpine.data('projectMap', (config) => ({
+        map: null,
+        layer: null,
+        L: null,
+        pending: null,
+
+        async init() {
+            const [{ default: L }] = await Promise.all([
+                import('leaflet'),
+                import('leaflet/dist/leaflet.css'),
+            ])
+
+            // Torn down (Livewire navigation) while the chunk was in flight.
+            if (!this.$refs.canvas?.isConnected) {
+                return
+            }
+
+            this.L = L
+            this.map = L.map(this.$refs.canvas, { scrollWheelZoom: false, worldCopyJump: true })
+            // No hard-coded centre: this platform ships to more than one
+            // state. The first draw fits the map to the pins.
+            this.map.setView([0, 0], 2)
+
+            L.tileLayer(config.tiles.url, {
+                maxZoom: config.tiles.maxZoom,
+                attribution: config.tiles.attribution,
+            }).addTo(this.map)
+
+            this.layer = L.featureGroup().addTo(this.map)
+
+            // A filter change can land before Leaflet has loaded.
+            this.draw(this.pending ?? JSON.parse(this.$refs.pins.textContent || '[]'))
+            this.pending = null
+        },
+
+        icon(pin) {
+            const template = this.$refs['icon-' + pin.category]
+            const element = template
+                ? template.content.firstElementChild.cloneNode(true)
+                : document.createElement('span')
+
+            return this.L.divIcon({
+                html: element,
+                className: 'map-marker',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
+                popupAnchor: [0, -14],
+            })
+        },
+
+        popup(pin) {
+            const wrap = document.createElement('div')
+            wrap.className = 'space-y-1 text-sm'
+
+            const line = (text, className = '') => {
+                if (!text) {
+                    return
+                }
+                const node = document.createElement('div')
+                node.className = className
+                node.textContent = text
+                wrap.appendChild(node)
+            }
+
+            line(pin.title, 'font-semibold text-ink')
+            line(pin.reference, 'font-mono text-xs text-ink-muted')
+            line(pin.entity, 'text-ink-muted')
+            line([pin.site, pin.lga].filter(Boolean).join(' · '), 'text-ink-muted')
+            // Status in words, always — the marker colour is never the only
+            // place it is stated.
+            line(pin.overdue ? `${pin.status_label} · ${pin.category_label}` : pin.status_label, 'font-medium text-ink')
+            line(config.labels.progress.replace(':percent', pin.progress))
+            if (pin.value) {
+                line(config.labels.value.replace(':value', pin.value))
+            }
+
+            const link = document.createElement('a')
+            link.href = config.projectUrl.replace('__ULID__', encodeURIComponent(pin.ulid))
+            link.textContent = config.labels.open
+            link.className = 'font-medium underline underline-offset-2'
+            wrap.appendChild(link)
+
+            return wrap
+        },
+
+        draw(pins) {
+            if (!this.map) {
+                this.pending = pins
+                return
+            }
+
+            this.layer.clearLayers()
+
+            // Drawn in reverse so the first pins — overdue ones, by the
+            // server's ordering — sit on top where markers overlap.
+            ;[...pins].reverse().forEach((pin) => {
+                // Leaflet applies `alt` only to <img> icons, so on these div icons
+                // the category must travel in the title (the tooltip) and the
+                // aria-label (the accessible name of the focusable marker).
+                const name = `${pin.title} — ${pin.category_label}`
+                const marker = this.L.marker([pin.lat, pin.lng], {
+                    icon: this.icon(pin),
+                    title: name,
+                    keyboard: true,
+                    riseOnHover: true,
+                })
+                    .bindPopup(this.popup(pin), { maxWidth: 280 })
+                    .addTo(this.layer)
+
+                marker.getElement()?.setAttribute('aria-label', name)
+            })
+
+            if (pins.length > 0) {
+                this.map.fitBounds(this.layer.getBounds(), { padding: [32, 32], maxZoom: 14 })
+            }
+        },
+
+        destroy() {
+            this.map?.remove()
+            this.map = null
         },
     }))
 })

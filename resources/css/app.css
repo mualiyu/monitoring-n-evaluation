@@ -347,6 +347,77 @@
     }
 }
 
+/*
+ | GIS map markers + their legend chips (App\Enums\ProjectMapCategory).
+ |
+ | Deliberately OUTSIDE every @layer. Leaflet's stylesheet is imported on demand
+ | and carries no cascade layer, and un-layered CSS beats layered CSS whatever
+ | the specificity — inside `@layer components` these overrides lost, and every
+ | marker sat on Leaflet's white, grey-bordered div-icon square.
+ |
+ | A glyph inside a token-coloured disc: the icon carries the meaning, the
+ | colour only reinforces it. The glyph wears --ink-inverse, which flips with
+ | the theme — white on the darker light-mode fills, near-black on the lighter
+ | dark-mode fills — so it clears 4.5:1 on every tone in both (a fixed white
+ | fell to 1.4:1 on the dark-mode warning fill, leaving colour alone to carry
+ | the status).
+ */
+.map-pin {
+    --pin: var(--neutral-ink);
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 9999px;
+    background-color: var(--pin);
+    color: var(--ink-inverse);
+    box-shadow:
+        0 0 0 2px var(--surface-raised),
+        var(--elevation-2);
+}
+
+.map-pin--sm {
+    width: 1.25rem;
+    height: 1.25rem;
+    box-shadow: none;
+}
+
+.map-pin--brand {
+    --pin: var(--brand-interactive);
+}
+
+.map-pin--info {
+    --pin: var(--info);
+}
+
+.map-pin--critical {
+    --pin: var(--critical);
+}
+
+.map-pin--warning {
+    --pin: var(--warning-ink);
+}
+
+.map-pin--positive {
+    --pin: var(--positive);
+}
+
+.map-pin--neutral {
+    --pin: var(--neutral-ink);
+}
+
+.leaflet-div-icon.map-marker {
+    background: transparent;
+    border: 0;
+}
+
+.leaflet-container {
+    font-family: inherit;
+    /* Its own stacking context, so Leaflet's panes (z 400+) can never ride
+       over the sticky topbar or the mobile navigation drawer. */
+    z-index: 0;
+}
+
 @keyframes ui-shimmer {
     0% {
         background-position: 200% 0;

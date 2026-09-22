@@ -241,4 +241,21 @@ return [
         'obligation_statuses' => ['mobilized', 'in_progress', 'completed'],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | GIS dashboard (oversight + workspace project maps)
+    |--------------------------------------------------------------------------
+    | The basemap tile server. OpenStreetMap's public tiles are fine for a
+    | demo, but its usage policy does not cover a production government
+    | platform — a deployment points this at its own tile server or a
+    | commercial provider. The attribution is rendered as HTML by the map
+    | library, so it comes from config only, never from user input.
+    */
+
+    'gis' => [
+        'tile_url' => env('PLATFORM_MAP_TILE_URL', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        'tile_attribution' => env('PLATFORM_MAP_TILE_ATTRIBUTION', '&copy; OpenStreetMap contributors'),
+        'max_zoom' => (int) env('PLATFORM_MAP_MAX_ZOOM', 18),
+    ],
+
 ];

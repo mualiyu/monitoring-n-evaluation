@@ -10,6 +10,12 @@
         :description="$this->surfaceDescription()"
     >
         <x-slot:actions>
+            {{-- Host-relative: the preferences screen is served at this path
+                 on both app surfaces, like the centre itself. --}}
+            <x-ui.button variant="ghost" icon="cog" :href="url('/settings/notifications')">
+                {{ __('Preferences') }}
+            </x-ui.button>
+
             @if ($this->unreadCount > 0)
                 <x-ui.button variant="secondary" icon="check" wire:click="markAllRead" loading="markAllRead">
                     {{ __('Mark all read (:count)', ['count' => $this->unreadCount]) }}

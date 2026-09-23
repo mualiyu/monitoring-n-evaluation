@@ -1,0 +1,57 @@
+# Build-context hygiene. Secrets and local state must never reach an image
+# layer: layers are extractable, so a copied .env is a published .env.
+.env
+.env.*
+auth.json
+storage/*.key
+
+# Rebuilt inside the image — never copy the host's copies.
+/vendor
+/node_modules
+/public/build
+/public/hot
+/public/fonts-manifest.dev.json
+/public/storage
+
+# Local/runtime state.
+/storage/logs/*
+/storage/pail
+/storage/framework/cache/data/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/framework/testing/*
+/storage/media-library/temp/*
+/storage/app/public/*
+/storage/app/private/*
+/storage/app/documents/*
+/database/database.sqlite
+*.log
+
+# Not needed at runtime (docs/ alone is ~56 MB of source PDFs).
+/.git
+/.github
+/.claude
+/docs
+/tests
+/phpunit.xml
+/phpstan.neon
+/PHPSTAN.md
+.phpunit.cache
+.phpunit.result.cache
+
+# Editor / OS noise.
+/.idea
+/.vscode
+/.zed
+/.nova
+/.cursor
+/.codex
+.phpactor.json
+_ide_helper.php
+.DS_Store
+Thumbs.db
+
+# The build recipe itself.
+Dockerfile
+compose.yml
+.dockerignore

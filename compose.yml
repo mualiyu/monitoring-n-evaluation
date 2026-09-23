@@ -1,0 +1,173 @@
+# M&E Platform — local/single-host stack.
+#
+#   cp .env.example .env && php artisan key:generate   # if you have no .env yet
+#   docker compose up -d --build
+#
+# Routing is Host-header driven (bootstrap/app.php rejects anything off the
+# platform domain), so reach it by name, never by http://localhost:
+#
+#   127.0.0.1  mne.test www.mne.test oversight.mne.test works.mne.test health.mne.test
+#
+# in /etc/hosts — one entry per surface plus one per tenant subdomain. For real
+# wildcard resolution (*.mne.test) use dnsmasq; a hosts file cannot do wildcards.
+#
+# Values fall back to the ones in .env: compose reads it for ${...} the same way
+# Laravel does. Only the container-topology bits below are overridden.
+
+name: mne-platform
+
+x-app-environment: &app-environment
+  APP_ENV: ${APP_ENV:-production}
+  APP_DEBUG: ${APP_DEBUG:-false}
+  APP_KEY: ${APP_KEY:?APP_KEY is unset — run `php artisan key:generate` or export it}
+  APP_URL: ${APP_URL:-http://mne.test:8080}
+  PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:-mne.test}
+
+  DB_CONNECTION: mysql
+  DB_HOST: mysql
+  DB_PORT: 3306
+  DB_DATABASE: ${DB_DATABASE:-mne}
+  DB_USERNAME: ${DB_USERNAME:-mne}
+  DB_PASSWORD: ${DB_PASSWORD:-secret}
+
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_CLIENT: phpredis
+
+  # Horizon only supervises Redis connections (config/horizon.php).
+  QUEUE_CONNECTION: redis
+  CACHE_STORE: redis
+
+  # stdout/stderr is the log: the container runtime owns collection.
+  LOG_CHANNEL: stderr
+
+x-app: &app
+  build:
+    context: .
+    target: app
+  image: mne-platform/app:local
+  env_file:
+    - path: .env
+      required: false
+  environment: *app-environment
+  volumes:
+    - storage:/var/www/html/storage
+  depends_on:
+    mysql:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  # --- nginx ------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      target: web
+    image: mne-platform/web:local
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    volumes:
+      # Read-only: the public disk is served, never written, from here.
+      - storage:/var/www/html/storage:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      # NOT /up: bootstrap/app.php passes both `health:` and `using:` to
+      # withRouting(), and the framework ignores `health:` whenever `using:` is
+      # set, so no /up route is ever registered. The portal apex is the probe
+      # instead — it needs a Host on the platform domain to clear trustHosts,
+      # and at 4 req/min it sits far under the portal limiter's 120/min.
+      test: ["CMD-SHELL", "wget -q -O /dev/null --header='Host: ${PLATFORM_DOMAIN:-mne.test}' http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # --- PHP-FPM ----------------------------------------------------------------
+  app:
+    <<: *app
+    environment:
+      <<: *app-environment
+      # Local convenience only. In production migrations are a separate,
+      # observed step: `docker compose run --rm app php artisan migrate --force`.
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+    healthcheck:
+      test: ["CMD-SHELL", "SCRIPT_NAME=/fpm-ping SCRIPT_FILENAME=/fpm-ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 | grep -q pong"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # --- queue supervisor -------------------------------------------------------
+  horizon:
+    <<: *app
+    command: ["horizon"]
+    # Let in-flight jobs (exports, PDF renders, notifications) finish on deploy.
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD-SHELL", "php artisan horizon:status | grep -q running"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # --- scheduler --------------------------------------------------------------
+  scheduler:
+    <<: *app
+    command: ["scheduler"]
+    # Reporting periods, obligations, reminders and overdue flags (routes/console.php).
+    stop_grace_period: 30s
+
+  # --- MySQL ------------------------------------------------------------------
+  mysql:
+    image: mysql:8.4
+    command:
+      # Match config/database.php rather than MySQL 8's utf8mb4_0900_ai_ci default.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_DATABASE:-mne}
+      MYSQL_USER: ${DB_USERNAME:-mne}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - mysql:/var/lib/mysql
+    ports:
+      # Host-side access for a GUI client; drop this line in production.
+      - "${DB_FORWARD_PORT:-33061}:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # --- Redis ------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      # Queued jobs share this instance with the cache: eviction would silently
+      # drop work, so run out of memory loudly instead.
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  storage:
+  mysql:
+  redis:
